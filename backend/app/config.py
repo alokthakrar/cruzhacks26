@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     auth0_algorithms: str = "RS256"
     skip_auth: bool = True  # Set to False in production
 
+    # Google Gemini AI
+    gemini_api_key: str = ""
+
     @property
     def auth0_issuer(self) -> str:
         return f"https://{self.auth0_domain}/"

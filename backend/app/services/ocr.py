@@ -30,7 +30,7 @@ class OCRService:
     
     def extract_latex(self, image_bytes: bytes) -> dict:
         """
-        Extract LaTeX from an image using Pix2Text.
+        Extract text from handwriting using Pix2Text and convert to plain text.
         
         Returns:
             dict with 'latex' (str), 'confidence' (float), and 'error' (str or None)
@@ -61,8 +61,11 @@ class OCRService:
                     "error": "Handwriting unclear - no text detected"
                 }
             
+            # Convert LaTeX to plain text
+            plain_text = self._latex_to_plain_text(latex_string)
+            
             return {
-                "latex": latex_string,
+                "latex": plain_text,
                 "confidence": 1.0,
                 "error": None
             }
@@ -73,6 +76,44 @@ class OCRService:
                 "confidence": 0.0,
                 "error": f"OCR failed: {str(e)}"
             }
+    
+    def _latex_to_plain_text(self, latex: str) -> str:
+        """Convert LaTeX to readable plain text."""
+        text = latex
+        
+        # Remove $$ and $ delimiters
+        text = text.replace('$$', '').replace('$', '').strip()
+        
+        # Convert fractions: \frac{a}{b} → a/b
+        import re
+        text = re.sub(r'\\frac\s*\{([^}]+)\}\s*\{([^}]+)\}', r'(\1)/(\2)', text)
+        
+        # Convert superscripts
+        text = re.sub(r'\^\{([^}]+)\}', r'^(\1)', text)
+        text = re.sub(r'\^(\w)', r'^\1', text)
+        
+        # Convert subscripts
+        text = re.sub(r'_\{([^}]+)\}', r'_(\1)', text)
+        text = re.sub(r'_(\w)', r'_\1', text)
+        
+        # Convert sqrt
+        text = re.sub(r'\\sqrt\s*\{([^}]+)\}', r'√(\1)', text)
+        
+        # Convert operators
+        text = text.replace('\\times', '×')
+        text = text.replace('\\cdot', '·')
+        text = text.replace('\\div', '÷')
+        text = text.replace('\\pm', '±')
+        text = text.replace('\\pi', 'π')
+        
+        # Remove all spaces
+        text = re.sub(r'\s+', '', text)
+        
+        # Clean up simple fractions
+        text = re.sub(r'\((\d+)\)/\((\d+)\)', r'\1/\2', text)
+        text = re.sub(r'\(([a-z])\)/\((\d+)\)', r'\1/\2', text)
+        
+        return text
     
     def analyze_with_gemini(self, latex_string: str) -> dict:
         """

@@ -1,19 +1,96 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import MathLine from "@/components/MathLine";
 import ProblemInput from "@/components/ProblemInput";
+
+interface ValidationResult {
+  is_valid: boolean;
+  error: string | null;
+  explanation: string;
+}
 
 export default function CanvasPage() {
   const [lines, setLines] = useState<number[]>([1]);
   const [strokeColor] = useState("#000000");
   const [strokeWidth] = useState(4);
   const [problemText, setProblemText] = useState("2x + 5 = 13");
+  const [lineTexts, setLineTexts] = useState<Map<number, string>>(new Map());
+  const [validationResults, setValidationResults] = useState<Map<number, ValidationResult>>(new Map());
+  const [isValidating, setIsValidating] = useState(false);
 
   const handleStrokeEnd = (lineNumber: number) => {
     // If writing on the last line, add a new line
     if (lineNumber === lines[lines.length - 1]) {
       setLines([...lines, lineNumber + 1]);
+    }
+  };
+
+  const handleTextChange = useCallback((lineNumber: number, text: string) => {
+    setLineTexts(prev => {
+      const newMap = new Map(prev);
+      if (text) {
+        newMap.set(lineNumber, text);
+      } else {
+        newMap.delete(lineNumber);
+      }
+      return newMap;
+    });
+  }, []);
+
+  const handleValidateAll = async () => {
+    setIsValidating(true);
+    setValidationResults(new Map());
+
+    try {
+      // Get all expressions in order, including the problem as the first expression
+      const userExpressions = lines
+        .map(lineNum => lineTexts.get(lineNum) || "")
+        .filter(text => text.trim() !== "");
+
+      if (userExpressions.length < 1) {
+        alert("Write at least one step to validate");
+        setIsValidating(false);
+        return;
+      }
+
+      // Include problem text as the starting point
+      const expressions = [problemText.replace(/\s+/g, ''), ...userExpressions];
+
+      const response = await fetch("http://localhost:8000/api/analyze/validate_sequence", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ expressions }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Validation failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Map results to line numbers
+      // result.step_number 1 = transition from problem to line 1
+      // result.step_number 2 = transition from line 1 to line 2, etc.
+      const resultsMap = new Map<number, ValidationResult>();
+      data.results.forEach((result: any) => {
+        // step_number indicates the transition, so we apply it to the target line
+        const lineNumber = result.step_number;
+        resultsMap.set(lineNumber, {
+          is_valid: result.is_valid,
+          error: result.error,
+          explanation: result.explanation,
+        });
+      });
+
+      setValidationResults(resultsMap);
+    } catch (err) {
+      console.error("Validation error:", err);
+      alert(err instanceof Error ? err.message : "Failed to validate");
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -32,8 +109,20 @@ export default function CanvasPage() {
               strokeColor={strokeColor}
               strokeWidth={strokeWidth}
               onStrokeEnd={() => handleStrokeEnd(lineNumber)}
+              onTextChange={handleTextChange}
+              validationResult={validationResults.get(lineNumber)}
             />
           ))}
+        </div>
+
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={handleValidateAll}
+            disabled={isValidating}
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isValidating ? "⏳ Validating..." : "✓ Validate All Steps"}
+          </button>
         </div>
       </div>
     </div>

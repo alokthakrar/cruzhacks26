@@ -10,11 +10,19 @@ const ReactSketchCanvas = dynamic(
     { ssr: false }
 );
 
+interface ValidationResult {
+    is_valid: boolean;
+    error: string | null;
+    explanation: string;
+}
+
 interface MathLineProps {
     lineNumber: number;
     strokeColor: string;
     strokeWidth: number;
     onStrokeEnd?: () => void;
+    onTextChange?: (lineNumber: number, text: string) => void;
+    validationResult?: ValidationResult | null;
 }
 
 export default function MathLine({
@@ -22,12 +30,19 @@ export default function MathLine({
     strokeColor,
     strokeWidth,
     onStrokeEnd,
+    onTextChange,
+    validationResult,
 }: MathLineProps) {
     const canvasRef = useRef<ReactSketchCanvasRef>(null);
     const [latex, setLatex] = useState<string>("");
     const [isEditing, setIsEditing] = useState(false);
     const { performOCR, error } = useOCR();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Notify parent when text changes
+    useEffect(() => {
+        onTextChange?.(lineNumber, latex);
+    }, [latex, lineNumber, onTextChange]);
 
     const checkOCR = async () => {
         if (!canvasRef.current) return;
@@ -77,8 +92,16 @@ export default function MathLine({
         };
     }, []);
 
+    // Determine border color based on validation
+    const getBorderColor = () => {
+        if (validationResult === null || validationResult === undefined) {
+            return "border-gray-300";
+        }
+        return validationResult.is_valid ? "border-green-500" : "border-red-500";
+    };
+
     return (
-        <div className="relative border-2 border-gray-300 rounded-lg bg-white overflow-visible mb-4">
+        <div className={`relative border-2 ${getBorderColor()} rounded-lg bg-white overflow-visible mb-4`}>
             {/* Line number indicator */}
             <div className="absolute -left-8 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-sm">
                 {lineNumber}
@@ -117,7 +140,15 @@ export default function MathLine({
                 </div>
             )}
 
-            {/* Error Display */}
+            {/* Validation Result */}
+            {validationResult && !validationResult.is_valid && (
+                <div className="absolute top-12 right-16 bg-red-50 border border-red-300 rounded px-3 py-2 shadow-md z-10 max-w-md">
+                    <div className="text-xs font-semibold text-red-700 mb-1">❌ Invalid Step</div>
+                    <div className="text-xs text-red-600">{validationResult.error || validationResult.explanation}</div>
+                </div>
+            )}
+
+            {/* OCR Error Display */}
             {error && (
                 <div className="absolute top-2 right-16 bg-red-50 border border-red-300 rounded px-3 py-1 shadow-md z-10 max-w-md">
                     <div className="text-xs text-red-600">{error}</div>
@@ -146,13 +177,6 @@ export default function MathLine({
                         title="Clear this line"
                     >
                         ×
-                    </button>
-                    <button
-                        onClick={checkOCR}
-                        className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 whitespace-nowrap font-semibold"
-                        title="Check this line"
-                    >
-                        ✓ Check
                     </button>
                 </div>
             </div>

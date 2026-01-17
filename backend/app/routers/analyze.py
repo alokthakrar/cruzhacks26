@@ -1,8 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 from ..services.ocr import ocr_service
+from ..services.symbolic_validator import get_validator
 
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
@@ -85,4 +86,48 @@ async def analyze_handwriting_ocr_first(
         hints=ai_result["hints"],
         error_types=ai_result.get("error_types", []),
         analysis_error=ai_result["error"]
+    )
+
+
+class ValidateSequenceRequest(BaseModel):
+    """Request to validate a sequence of math steps."""
+    expressions: List[str]
+
+
+class StepValidationResult(BaseModel):
+    """Result for a single step validation."""
+    step_number: int
+    from_expr: str
+    to_expr: str
+    is_valid: bool
+    error: Optional[str]
+    explanation: str
+
+
+class ValidateSequenceResponse(BaseModel):
+    """Response with validation results for all steps."""
+    results: List[StepValidationResult]
+    all_valid: bool
+
+
+@router.post("/validate_sequence", response_model=ValidateSequenceResponse)
+async def validate_sequence(request: ValidateSequenceRequest):
+    """
+    Validate a sequence of algebraic steps using SymPy (no AI).
+    Checks if each step N+1 follows algebraically from step N.
+    """
+    if len(request.expressions) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Need at least 2 expressions to validate steps"
+        )
+    
+    validator = get_validator()
+    results = validator.validate_sequence(request.expressions)
+    
+    all_valid = all(r["is_valid"] for r in results)
+    
+    return ValidateSequenceResponse(
+        results=[StepValidationResult(**r) for r in results],
+        all_valid=all_valid
     )

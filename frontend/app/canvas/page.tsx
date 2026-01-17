@@ -8,6 +8,7 @@ interface ValidationResult {
   is_valid: boolean;
   error: string | null;
   explanation: string;
+  warning?: string | null;
 }
 
 export default function CanvasPage() {
@@ -82,6 +83,7 @@ export default function CanvasPage() {
           is_valid: result.is_valid,
           error: result.error,
           explanation: result.explanation,
+          warning: result.warning,
         });
       });
 

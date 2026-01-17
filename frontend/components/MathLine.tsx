@@ -14,6 +14,7 @@ interface ValidationResult {
     is_valid: boolean;
     error: string | null;
     explanation: string;
+    warning?: string | null;
 }
 
 interface MathLineProps {
@@ -97,11 +98,15 @@ export default function MathLine({
         if (validationResult === null || validationResult === undefined) {
             return "border-gray-300";
         }
+        // Yellow/orange for warnings, green for valid, red for invalid
+        if (validationResult.warning) {
+            return "border-yellow-500";
+        }
         return validationResult.is_valid ? "border-green-500" : "border-red-500";
     };
 
     return (
-        <div className={`relative border-2 ${getBorderColor()} rounded-lg bg-white overflow-visible mb-4`}>
+        <div className={`relative border-2 ${getBorderColor()} rounded-lg bg-white overflow-visible mb-3`}>
             {/* Line number indicator */}
             <div className="absolute -left-8 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-sm">
                 {lineNumber}
@@ -140,11 +145,25 @@ export default function MathLine({
                 </div>
             )}
 
-            {/* Validation Result */}
+            {/* Warning Message (valid but could be better) */}
+            {validationResult && validationResult.is_valid && validationResult.warning && (
+                <div className="absolute top-2 left-2 group z-10">
+                    <div className="text-yellow-500 text-xl cursor-help">⚠️</div>
+                    <div className="hidden group-hover:block absolute top-8 left-0 bg-yellow-50 border border-yellow-300 rounded px-3 py-2 shadow-md max-w-md whitespace-normal">
+                        <div className="text-xs font-semibold text-yellow-700 mb-1">Note</div>
+                        <div className="text-xs text-yellow-700">{validationResult.warning}</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Validation Error */}
             {validationResult && !validationResult.is_valid && (
-                <div className="absolute top-12 right-16 bg-red-50 border border-red-300 rounded px-3 py-2 shadow-md z-10 max-w-md">
-                    <div className="text-xs font-semibold text-red-700 mb-1">❌ Invalid Step</div>
-                    <div className="text-xs text-red-600">{validationResult.error || validationResult.explanation}</div>
+                <div className="absolute top-2 left-2 group z-10">
+                    <div className="text-red-500 text-xl cursor-help">❌</div>
+                    <div className="hidden group-hover:block absolute top-8 left-0 bg-red-50 border border-red-300 rounded px-3 py-2 shadow-md max-w-md whitespace-normal">
+                        <div className="text-xs font-semibold text-red-700 mb-1">Incorrect transformation</div>
+                        <div className="text-xs text-red-600">{validationResult.error || validationResult.explanation}</div>
+                    </div>
                 </div>
             )}
 

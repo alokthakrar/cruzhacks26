@@ -102,6 +102,7 @@ class StepValidationResult(BaseModel):
     is_valid: bool
     error: Optional[str]
     explanation: str
+    warning: Optional[str] = None
 
 
 class ValidateSequenceResponse(BaseModel):

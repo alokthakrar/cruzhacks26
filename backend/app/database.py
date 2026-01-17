@@ -47,3 +47,13 @@ def get_sessions_collection():
 def get_subjects_collection():
     """Get subjects collection."""
     return get_database()["subjects"]
+
+
+def get_pdfs_collection():
+    """Get extracted_pdfs collection."""
+    return get_database()["extracted_pdfs"]
+
+
+def get_questions_collection():
+    """Get questions collection."""
+    return get_database()["questions"]

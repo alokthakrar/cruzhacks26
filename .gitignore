@@ -5,6 +5,7 @@ DESIGN.md
 .env
 .env.local
 .env.*.local
+auth.json
 
 # Python
 __pycache__/

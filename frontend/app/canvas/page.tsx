@@ -19,6 +19,7 @@ export default function CanvasPage() {
   const [lineTexts, setLineTexts] = useState<Map<number, string>>(new Map());
   const [validationResults, setValidationResults] = useState<Map<number, ValidationResult>>(new Map());
   const [isValidating, setIsValidating] = useState(false);
+  const [finalResult, setFinalResult] = useState<{correct: boolean, message: string} | null>(null);
 
   const handleStrokeEnd = (lineNumber: number) => {
     // If writing on the last line, add a new line
@@ -42,6 +43,7 @@ export default function CanvasPage() {
   const handleValidateAll = async () => {
     setIsValidating(true);
     setValidationResults(new Map());
+    setFinalResult(null);
 
     try {
       // Get all expressions in order, including the problem as the first expression
@@ -88,6 +90,30 @@ export default function CanvasPage() {
       });
 
       setValidationResults(resultsMap);
+
+      // Check if all steps are valid and they reached a final answer
+      const allValid = data.all_valid;
+      const lastExpression = userExpressions[userExpressions.length - 1];
+      
+      // Check if the last line is a solution (e.g., x=4, y=5, etc.)
+      const isFinalAnswer = /^[a-zA-Z]\s*=\s*-?\d+(\.\d+)?$/.test(lastExpression);
+      
+      if (allValid && isFinalAnswer) {
+        setFinalResult({
+          correct: true,
+          message: "🎉 Correct! You solved it!"
+        });
+      } else if (allValid && !isFinalAnswer) {
+        setFinalResult({
+          correct: false,
+          message: "All steps are valid, but keep going to find the final answer!"
+        });
+      } else {
+        setFinalResult({
+          correct: false,
+          message: "Fix the errors above to continue"
+        });
+      }
     } catch (err) {
       console.error("Validation error:", err);
       alert(err instanceof Error ? err.message : "Failed to validate");
@@ -117,14 +143,25 @@ export default function CanvasPage() {
           ))}
         </div>
 
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex flex-col items-center gap-4">
           <button
             onClick={handleValidateAll}
             disabled={isValidating}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-lg"
           >
-            {isValidating ? "⏳ Validating..." : "✓ Validate All Steps"}
+            {isValidating ? "⏳ Checking..." : "Submit"}
           </button>
+
+          {/* Final Result Message */}
+          {finalResult && (
+            <div className={`px-6 py-4 rounded-lg border-2 font-semibold text-lg ${
+              finalResult.correct 
+                ? "bg-green-50 border-green-500 text-green-700" 
+                : "bg-yellow-50 border-yellow-500 text-yellow-700"
+            }`}>
+              {finalResult.message}
+            </div>
+          )}
         </div>
       </div>
     </div>

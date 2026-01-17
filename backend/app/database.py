@@ -42,3 +42,8 @@ def get_user_collection():
 def get_sessions_collection():
     """Get sessions collection."""
     return get_database()["sessions"]
+
+
+def get_subjects_collection():
+    """Get subjects collection."""
+    return get_database()["subjects"]

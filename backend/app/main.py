@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import connect_to_mongo, close_mongo_connection
-from .routers import users
+from .routers import users, subjects
 
 
 @asynccontextmanager
@@ -35,6 +35,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(users.router, prefix="/api")
+app.include_router(subjects.router, prefix="/api")
 
 
 @app.get("/health")

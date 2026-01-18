@@ -477,6 +477,8 @@ export type KnowledgeGraphNode = {
 export type KnowledgeGraph = {
   _id: string
   subject_id: string
+  name?: string
+  description?: string
   nodes: Record<string, KnowledgeGraphNode>
   root_concepts: string[]
 }

@@ -5,23 +5,10 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { getKnowledgeGraph, getMasteryState, type KnowledgeGraph, type ConceptMastery } from '@/lib/api'
 
-const FOLDER_NAMES: { [key: string]: string } = {
-  '1': 'Calculus',
-  '2': 'Physics',
-  'algebra_basics': 'Basic Algebra',
-}
-
-// Map folder IDs to subject IDs (for now they're the same, but this allows flexibility)
-const FOLDER_TO_SUBJECT: { [key: string]: string } = {
-  '1': '1',
-  '2': '2',
-  'algebra_basics': 'algebra_basics',
-}
-
 export default function ProgressPage() {
   const params = useParams()
   const folderId = params.folderId as string
-  const subjectId = FOLDER_TO_SUBJECT[folderId] || folderId
+  const subjectId = folderId
 
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraph | null>(null)
   const [masteryData, setMasteryData] = useState<ConceptMastery[]>([])
@@ -30,8 +17,7 @@ export default function ProgressPage() {
   const [connections, setConnections] = useState<Array<{ x1: number; y1: number; x2: number; y2: number }>>([])
   const containerRef = useRef<HTMLDivElement | null>(null)
   const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
-
-  const folderName = FOLDER_NAMES[folderId] || 'Unknown Subject'
+  const [folderName, setFolderName] = useState<string>('Loading...')
 
   useEffect(() => {
     async function loadProgressData() {
@@ -42,6 +28,11 @@ export default function ProgressPage() {
         // Fetch knowledge graph
         const graph = await getKnowledgeGraph(subjectId)
         setKnowledgeGraph(graph)
+        
+        // Set folder name from graph
+        if (graph.name) {
+          setFolderName(graph.name)
+        }
 
         // Try to fetch user mastery (will fail if not initialized yet)
         try {

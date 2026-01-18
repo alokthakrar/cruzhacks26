@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import {
   getSubjectQuestions,
   Question,
@@ -10,131 +10,133 @@ import {
   getMasteryState,
   getProgress,
   MasteryState,
-  ProgressSummary
-} from '@/lib/api'
+  ProgressSummary,
+} from "@/lib/api";
 
 // Type definitions for UI
 type UIQuestion = {
-  id: string
-  questionText: string
-  questionNumber: number
-  pdfName: string
-  created_at: string
-}
+  id: string;
+  questionText: string;
+  questionNumber: number;
+  pdfName: string;
+  created_at: string;
+};
 
 const FOLDER_COLORS = [
-  { bg: 'from-blue-50 to-blue-100', icon: 'text-blue-500' },
-  { bg: 'from-purple-50 to-purple-100', icon: 'text-purple-500' },
-  { bg: 'from-green-50 to-green-100', icon: 'text-green-500' },
-  { bg: 'from-orange-50 to-orange-100', icon: 'text-orange-500' },
-  { bg: 'from-pink-50 to-pink-100', icon: 'text-pink-500' },
-  { bg: 'from-indigo-50 to-indigo-100', icon: 'text-indigo-500' },
-]
+  { bg: "from-blue-50 to-blue-100", icon: "text-blue-500" },
+  { bg: "from-purple-50 to-purple-100", icon: "text-purple-500" },
+  { bg: "from-green-50 to-green-100", icon: "text-green-500" },
+  { bg: "from-orange-50 to-orange-100", icon: "text-orange-500" },
+  { bg: "from-pink-50 to-pink-100", icon: "text-pink-500" },
+  { bg: "from-indigo-50 to-indigo-100", icon: "text-indigo-500" },
+];
 
 const getRandomFolderColor = () => {
-  return FOLDER_COLORS[Math.floor(Math.random() * FOLDER_COLORS.length)]
-}
+  return FOLDER_COLORS[Math.floor(Math.random() * FOLDER_COLORS.length)];
+};
 
 // Temporary user ID until auth is implemented
-const TEMP_USER_ID = 'demo_user'
+const TEMP_USER_ID = "demo_user";
 
 export default function FolderQuestionsPage() {
-  const params = useParams()
-  const router = useRouter()
-  const folderId = params.folderId as string
+  const params = useParams();
+  const router = useRouter();
+  const folderId = params.folderId as string;
 
-  const [questions, setQuestions] = useState<UIQuestion[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [folderName, setFolderName] = useState('Loading...')
-  const [folderColor] = useState(getRandomFolderColor())
+  const [questions, setQuestions] = useState<UIQuestion[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [folderName, setFolderName] = useState("Loading...");
+  const [folderColor] = useState(getRandomFolderColor());
 
   // BKT state
-  const [masteryState, setMasteryState] = useState<MasteryState | null>(null)
-  const [progress, setProgress] = useState<ProgressSummary | null>(null)
-  const [isInitializing, setIsInitializing] = useState(false)
-  const [bktError, setBktError] = useState<string | null>(null)
+  const [masteryState, setMasteryState] = useState<MasteryState | null>(null);
+  const [progress, setProgress] = useState<ProgressSummary | null>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [bktError, setBktError] = useState<string | null>(null);
 
   // Load questions from API
   const loadQuestions = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const response = await getSubjectQuestions(folderId, 1, 100)
+      const response = await getSubjectQuestions(folderId, 1, 100);
       // Convert API questions to UI format
-      const uiQuestions: UIQuestion[] = response.questions.map(q => ({
-        id: q._id,  // MongoDB uses _id
+      const uiQuestions: UIQuestion[] = response.questions.map((q) => ({
+        id: q._id, // MongoDB uses _id
         questionText: q.text_content,
         questionNumber: q.question_number,
-        pdfName: 'Uploaded PDF', // TODO: Get actual PDF name
+        pdfName: "Uploaded PDF", // TODO: Get actual PDF name
         created_at: q.created_at,
-      }))
-      setQuestions(uiQuestions)
+      }));
+      setQuestions(uiQuestions);
       // Set folder name based on first question or default
       if (uiQuestions.length > 0) {
-        setFolderName('Questions')
+        setFolderName("Questions");
       }
     } catch (error) {
-      console.error('Failed to load questions:', error)
-      setFolderName('Folder')
+      console.error("Failed to load questions:", error);
+      setFolderName("Folder");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Load BKT mastery state
   const loadMasteryState = async () => {
     try {
       const [mastery, prog] = await Promise.all([
         getMasteryState(TEMP_USER_ID, folderId),
-        getProgress(TEMP_USER_ID, folderId)
-      ])
-      setMasteryState(mastery)
-      setProgress(prog)
-      setBktError(null)
+        getProgress(TEMP_USER_ID, folderId),
+      ]);
+      setMasteryState(mastery);
+      setProgress(prog);
+      setBktError(null);
     } catch (error) {
       // Mastery not initialized yet - that's OK
-      console.log('Mastery state not found, user needs to initialize')
-      setMasteryState(null)
-      setProgress(null)
+      console.log("Mastery state not found, user needs to initialize");
+      setMasteryState(null);
+      setProgress(null);
     }
-  }
+  };
 
   // Initialize BKT for this subject
   const handleStartLearning = async () => {
-    setIsInitializing(true)
-    setBktError(null)
+    setIsInitializing(true);
+    setBktError(null);
     try {
-      await initializeBKT(TEMP_USER_ID, folderId)
-      await loadMasteryState()
+      await initializeBKT(TEMP_USER_ID, folderId);
+      await loadMasteryState();
       // Navigate to study mode
-      router.push(`/dashboard/${folderId}/study`)
+      router.push(`/dashboard/${folderId}/study`);
     } catch (error) {
-      console.error('Failed to initialize BKT:', error)
-      setBktError(error instanceof Error ? error.message : 'Failed to start learning')
+      console.error("Failed to initialize BKT:", error);
+      setBktError(
+        error instanceof Error ? error.message : "Failed to start learning",
+      );
     } finally {
-      setIsInitializing(false)
+      setIsInitializing(false);
     }
-  }
+  };
 
   // Continue learning (already initialized)
   const handleContinueLearning = () => {
-    router.push(`/dashboard/${folderId}/study`)
-  }
+    router.push(`/dashboard/${folderId}/study`);
+  };
 
   useEffect(() => {
-    loadQuestions()
-    loadMasteryState()
+    loadQuestions();
+    loadMasteryState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folderId])
+  }, [folderId]);
 
   // Format date nicely
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
-  }
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
   return (
     <div className="paper min-h-screen">
@@ -146,13 +148,25 @@ export default function FolderQuestionsPage() {
             href="/dashboard"
             className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-4 font-semibold transition-all duration-200 hover:gap-3 gap-2 group"
           >
-            <svg className="w-5 h-5 transition-transform duration-200 group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-5 h-5 transition-transform duration-200 group-hover:-translate-x-1"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
-            Back to Dashboard
+            Back to dashboard
           </Link>
           <div className="flex items-center gap-3 animate-fade-in">
-            <div className={`p-3 rounded-xl bg-gradient-to-br ${folderColor.bg}`}>
+            <div
+              className={`p-3 rounded-xl bg-gradient-to-br ${folderColor.bg}`}
+            >
               <svg
                 className={`w-12 h-12 ${folderColor.icon}`}
                 fill="currentColor"
@@ -166,7 +180,8 @@ export default function FolderQuestionsPage() {
                 {folderName}
               </h1>
               <p className="text-sm md:text-base text-gray-600">
-                {questions.length} {questions.length === 1 ? 'question' : 'questions'} to solve
+                {questions.length}{" "}
+                {questions.length === 1 ? "question" : "questions"} to solve
               </p>
             </div>
           </div>
@@ -177,18 +192,22 @@ export default function FolderQuestionsPage() {
           <div className="mb-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Your Progress</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Your Progress
+                </h2>
                 <div className="flex flex-wrap gap-4 text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                     <span className="text-gray-700">
-                      <strong>{progress?.concepts_mastered || 0}</strong> concepts mastered
+                      <strong>{progress?.concepts_mastered || 0}</strong>{" "}
+                      concepts mastered
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                     <span className="text-gray-700">
-                      <strong>{progress?.concepts_unlocked || 0}</strong> concepts unlocked
+                      <strong>{progress?.concepts_unlocked || 0}</strong>{" "}
+                      concepts unlocked
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -203,8 +222,10 @@ export default function FolderQuestionsPage() {
               {/* Progress Bar */}
               <div className="flex-1 max-w-md">
                 <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>Overall Mastery</span>
-                  <span className="font-semibold">{progress?.mastery_percentage || 0}%</span>
+                  <span>Overall mastery</span>
+                  <span className="font-semibold">
+                    {progress?.mastery_percentage || 0}%
+                  </span>
                 </div>
                 <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
                   <div
@@ -218,9 +239,19 @@ export default function FolderQuestionsPage() {
                 onClick={handleContinueLearning}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2"
               >
-                Continue Learning
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                Practice
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
                 </svg>
               </button>
             </div>
@@ -232,9 +263,12 @@ export default function FolderQuestionsPage() {
           <div className="mb-8 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Ready to Learn?</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Ready to Learn?
+                </h2>
                 <p className="text-gray-600">
-                  Start adaptive learning powered by AI. We'll track your progress and recommend questions based on your skill level.
+                  Start adaptive learning powered by AI. We'll track your
+                  progress and recommend questions based on your skill level.
                 </p>
                 {bktError && (
                   <p className="text-red-600 text-sm mt-2">{bktError}</p>
@@ -248,16 +282,38 @@ export default function FolderQuestionsPage() {
                 {isInitializing ? (
                   <>
                     <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        fill="none"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
                     </svg>
                     Starting...
                   </>
                 ) : (
                   <>
                     Start Learning
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 7l5 5m0 0l-5 5m5-5H6"
+                      />
                     </svg>
                   </>
                 )}
@@ -274,33 +330,33 @@ export default function FolderQuestionsPage() {
           </div>
         ) : questions.length > 0 ? (
           <>
-            <h2 className="text-xl font-bold text-gray-900 mb-4">All Questions</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              All Questions
+            </h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
               {questions.map((question, index) => (
                 <Link
                   key={question.id}
                   href={`/dashboard/${folderId}/question/${question.id}`}
-                  className="bg-white rounded-xl p-6 transition-all duration-300 border border-gray-200 cursor-pointer hover:-translate-y-1 group"
+                  className="bg-white rounded-xl p-6 transition-all duration-300 cursor-pointer hover:-translate-y-1 group"
                   style={{
                     animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`,
                     boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                    border: "1px solid rgba(0, 0, 0, 0.8)",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = "0 12px 24px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.boxShadow =
+                      "0 12px 24px rgba(0,0,0,0.08)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)";
+                    e.currentTarget.style.boxShadow =
+                      "0 4px 12px rgba(0,0,0,0.06)";
                   }}
                 >
                   {/* Question Number Badge */}
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start mb-4">
                     <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg px-4 py-2 font-bold text-sm">
                       Question {question.questionNumber}
-                    </div>
-                    <div className="text-gray-400 group-hover:text-blue-500 transition-colors duration-200">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
                     </div>
                   </div>
 
@@ -317,7 +373,7 @@ export default function FolderQuestionsPage() {
                       {question.pdfName}
                     </span>
                     <button className="text-blue-600 hover:text-blue-700 font-semibold text-sm md:text-base transition-colors duration-200">
-                      Start Working →
+                      Start working →
                     </button>
                   </div>
                 </Link>
@@ -325,18 +381,32 @@ export default function FolderQuestionsPage() {
             </div>
           </>
         ) : (
-          <div className="text-center py-12 md:py-16 bg-white/50 backdrop-blur-sm rounded-lg border-2 border-dashed border-gray-300 animate-fade-in">
+          <div
+            className="text-center py-12 md:py-16 bg-white/50 backdrop-blur-sm rounded-lg border-2 border-dashed border-gray-300 animate-fade-in"
+            style={{ border: "1px solid rgba(0, 0, 0, 0.8)" }}
+          >
             <div className="max-w-md mx-auto">
               <div className="bg-gray-100 rounded-full w-20 h-20 md:w-24 md:h-24 flex items-center justify-center mx-auto mb-4 md:mb-6">
-                <svg className="w-10 h-10 md:w-12 md:h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-10 h-10 md:w-12 md:h-12 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
               <p className="text-gray-700 text-base md:text-lg font-semibold mb-2">
                 No questions yet
               </p>
               <p className="text-gray-500 text-sm md:text-base">
-                Upload a PDF to this folder and our AI will parse the questions for you
+                Upload a PDF to this folder and our AI will parse the questions
+                for you
               </p>
             </div>
           </div>
@@ -370,5 +440,5 @@ export default function FolderQuestionsPage() {
         }
       `}</style>
     </div>
-  )
+  );
 }

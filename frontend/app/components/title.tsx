@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Archivo } from "next/font/google";
+import Image from "next/image";
 
 const archivo = Archivo({ subsets: ["latin"] });
 
@@ -35,28 +36,69 @@ export default function Title() {
   return (
     <main
       style={{
-        minHeight: "100vh",
+        minHeight: "calc(100vh - 320px)", // raise the next section higher
         display: "grid",
         placeItems: "center",
         padding: 24,
       }}
     >
-      <div style={{ textAlign: "center" }}>
+      <div style={{ textAlign: "center", marginTop: "-40px" }}>
         <Handwrite word={letters} />
         <p
           className={archivo.className}
           style={{
             fontSize: 18,
             color: "#000000",
-            margin: "-120px 0 0 0",
+            margin: "-40px 0 0 0",
             opacity: 0,
             animation: "fadeIn 0.6s ease forwards",
             animationDelay: "1.2s",
+            //transform: "translateX(20px)",
           }}
         >
-          a wiser eye on your work
+          A wiser eye on your work
         </p>
+        <button
+          className={archivo.className}
+          style={{
+            marginTop: 32,
+            padding: "10px 28px",
+            fontSize: 16,
+            fontWeight: 500,
+            backgroundColor: "transparent",
+            color: "rgba(0, 0, 0, 0.7)",
+            border: "1px solid rgba(0, 0, 0, 0.8)",
+            borderRadius: 999,
+            cursor: "pointer",
+            opacity: 0,
+            animation: "fadeIn 0.6s ease forwards",
+            animationDelay: "1.4s",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "rgba(0, 0, 0, 0.9)";
+            e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.08)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "rgba(0, 0, 0, 0.8)";
+            e.currentTarget.style.backgroundColor = "transparent";
+          }}
+        >
+          Start solving →
+        </button>
       </div>
+      <Image
+        src="/owlsticker.png"
+        alt="Owl sticker"
+        width={200}
+        height={250}
+        style={{
+          position: "fixed",
+          bottom: 40,
+          right: 40,
+          filter: "drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.15))",
+        }}
+      />
     </main>
   );
 }
@@ -70,7 +112,7 @@ function Handwrite({ word }: { word: Letter[] }) {
 
   // Custom x-positions for each letter (p, e, r, c, h)
   const letterPositions = [100, 270, 350, 430, 510];
-  const letterYPositions = [10, 10, 10, 10, -90];
+  const letterYPositions = [100, 100, 100, 100, 0];
 
   useEffect(() => {
     const easing = "cubic-bezier(0.55, 0.05, 0.25, 0.95)";
@@ -132,7 +174,7 @@ function Handwrite({ word }: { word: Letter[] }) {
       </defs>
 
       {/* Render the filled letters, each revealed by its own animated mask */}
-      <g transform="translate(175, 0)">
+      <g transform="translate(220, 0)">
         <g filter="url(#ink)">
           {word.map((L, i) => (
             <g

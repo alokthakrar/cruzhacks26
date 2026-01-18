@@ -332,15 +332,50 @@ async def get_knowledge_graph(
 ):
     """
     Get the knowledge graph structure for a subject.
-    
+
     Returns DAG of concepts with prerequisites/dependencies.
     Useful for visualization and navigation.
     """
     graph_doc = await db["knowledge_graphs"].find_one({"subject_id": subject_id})
-    
+
     if not graph_doc:
         raise HTTPException(status_code=404, detail="Knowledge graph not found for this subject")
-    
+
+    # Fill missing name/description from subject if needed
+    if not graph_doc.get("name") or not graph_doc.get("description"):
+        subject_doc = await db["subjects"].find_one({"_id": subject_id})
+        if subject_doc:
+            graph_doc.setdefault("name", subject_doc.get("name"))
+            graph_doc.setdefault(
+                "description",
+                f"Learning path for {subject_doc.get('name')}"
+            )
+
+    # Normalize nodes for frontend (array with prerequisites + bkt_params)
+    nodes = graph_doc.get("nodes")
+    if isinstance(nodes, dict):
+        normalized_nodes = []
+        for concept_id, node in nodes.items():
+            bkt_params = node.get("default_params") or node.get("bkt_params") or {
+                "P_L0": 0.10,
+                "P_T": 0.10,
+                "P_G": 0.25,
+                "P_S": 0.10
+            }
+            normalized_nodes.append({
+                "id": node.get("concept_id", concept_id),
+                "name": node.get("name", concept_id),
+                "description": node.get("description", ""),
+                "prerequisites": node.get("parents", node.get("prerequisites", [])),
+                "depth": node.get("depth", 0),
+                "bkt_params": bkt_params
+            })
+        graph_doc["nodes"] = normalized_nodes
+
+    # Convert ObjectId to string for JSON serialization
+    if "_id" in graph_doc:
+        graph_doc["_id"] = str(graph_doc["_id"])
+
     return graph_doc
 
 

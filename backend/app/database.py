@@ -12,7 +12,8 @@ db: Optional[AsyncIOMotorDatabase] = None
 async def connect_to_mongo():
     """Initialize MongoDB connection."""
     global client, db
-    client = AsyncIOMotorClient(settings.mongodb_uri)
+    # Disable SSL verification for development (fix certificate error)
+    client = AsyncIOMotorClient(settings.mongodb_uri, tlsAllowInvalidCertificates=True)
     db = client[settings.database_name]
     # Verify connection
     await client.admin.command("ping")

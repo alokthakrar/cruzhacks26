@@ -14,6 +14,7 @@ class Subject(BaseModel):
 
     class Config:
         populate_by_name = True
+        json_encoders = {datetime: lambda v: v.isoformat()}
 
 
 class SubjectCreate(BaseModel):

@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from ..services.ocr import ocr_service
-from ..services.symbolic_validator import get_validator
 
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])

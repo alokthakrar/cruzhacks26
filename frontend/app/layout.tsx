@@ -21,7 +21,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-
         className={`${archivo.variable} antialiased`}
         style={{ fontFamily: 'var(--font-archivo), sans-serif' }}
         suppressHydrationWarning

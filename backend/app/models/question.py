@@ -1,25 +1,97 @@
-MONGODB_URI=mongodb://localhost:27017
-DATABASE_NAME=adaptive_tutor
-
-# Auth0 Settings (optional - leave empty and set SKIP_AUTH=true for dev)
-AUTH0_DOMAIN=
-AUTH0_API_AUDIENCE=
-SKIP_AUTH=true
-
-# Google Gemini AI
-GEMINI_API_KEY=your_gemini_api_key_here
-AUTH0_ALGORITHMS=RS256
-
-# Google Gemini AI (Vertex AI)
-GCP_PROJECT_ID=your-gcp-project-id
-GCP_LOCATION=us-central1
-# Path to auth.json (set via GOOGLE_APPLICATION_CREDENTIALS env var or place auth.json in project root)
-
-AUTH0_ALGORITHMS=RS256
 from datetime import datetime
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
+
+class BoundingBox(BaseModel):
+    """Bounding box coordinates for a question region."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+# ===== PDF Extraction Models =====
+
+class PDFQuestionBase(BaseModel):
+    """Base fields for a PDF-extracted question."""
+
+    page_number: int
+    question_number: int
+    text_content: str
+    latex_content: Optional[str] = None
+    question_type: str  # integral, derivative, equation, word_problem, other
+    difficulty_estimate: Optional[str] = None  # easy, medium, hard
+    bounding_box: BoundingBox
+    extraction_confidence: float
+
+
+class PDFQuestion(PDFQuestionBase):
+    """A question extracted from a PDF."""
+
+    id: str = Field(alias="_id")
+    pdf_id: str
+    user_id: str
+    subject_id: Optional[str] = None  # Associated subject for pooling questions
+    cropped_image: str  # base64 encoded PNG
+    created_at: datetime
+
+    class Config:
+        populate_by_name = True
+
+
+class PDFQuestionCreate(PDFQuestionBase):
+    """Internal model for creating a question during extraction."""
+
+    cropped_image: str  # base64 encoded PNG
+
+
+class ExtractedPDF(BaseModel):
+    """Metadata for an extracted PDF document."""
+
+    id: str = Field(alias="_id")
+    user_id: str
+    subject_id: Optional[str] = None  # Associated subject for pooling questions
+    original_filename: str
+    upload_timestamp: datetime
+    total_pages: int
+    processing_status: Literal["pending", "processing", "completed", "failed"]
+    processing_error: Optional[str] = None
+    question_count: int = 0
+
+    class Config:
+        populate_by_name = True
+
+
+class ExtractedPDFCreate(BaseModel):
+    """Internal model for creating a PDF record."""
+
+    original_filename: str
+
+
+class PDFUploadResponse(BaseModel):
+    """Response after uploading a PDF."""
+
+    pdf_id: str
+    filename: str
+    subject_id: Optional[str] = None
+    status: str
+    message: str
+    total_pages: int = 0
+    question_count: int = 0
+
+
+class PDFQuestionsListResponse(BaseModel):
+    """Response for listing PDF-extracted questions."""
+
+    questions: List[PDFQuestion]
+    total: int
+    page: int
+    limit: int
+
+
+# ===== BKT Question Models =====
 
 class Question(BaseModel):
     """A practice question with Elo rating and concept tagging."""

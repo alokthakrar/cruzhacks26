@@ -1,9 +1,13 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import io
+import os
 from PIL import Image
-from pix2text import Pix2Text
-import google.generativeai as genai
 from ..config import get_settings
+
+# Lazy imports to avoid startup errors - imported inside load_models()
+if TYPE_CHECKING:
+    from pix2text import Pix2Text
+    from vertexai.generative_models import GenerativeModel
 
 
 class OCRService:
@@ -14,19 +18,30 @@ class OCRService:
         self.gemini_model = None
         
     def load_models(self):
-        """Load Pix2Text and configure Gemini. Called during app startup."""
-        print("🔄 Loading Pix2Text model...")
-        self.p2t_model = Pix2Text.from_config()
-        print("✅ Pix2Text model loaded successfully")
+        """Load Pix2Text and Gemini models on startup."""
+        # Import here to avoid startup errors from pix2text dependencies
+        from pix2text import Pix2Text
+        import vertexai
+        from vertexai.generative_models import GenerativeModel
         
+        print("Loading Pix2Text model...")
+        self.p2t_model = Pix2Text.from_config()
+        print("✅ Pix2Text model loaded")
+
         settings = get_settings()
-        if settings.gemini_api_key:
-            print("🔄 Configuring Gemini AI...")
-            genai.configure(api_key=settings.gemini_api_key)
-            self.gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
-            print("✅ Gemini AI configured successfully")
+        if settings.gcp_project_id:
+            print("Configuring Vertex AI...")
+            # Set auth.json path
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "auth.json"
+            
+            # Initialize Vertex AI
+            vertexai.init(project=settings.gcp_project_id, location=settings.gcp_location)
+            
+            # Use gemini-2.5-flash for $300 credits
+            self.gemini_model = GenerativeModel("gemini-2.5-flash")
+            print("✅ Vertex AI configured successfully with gemini-2.5-flash")
         else:
-            print("⚠️  Warning: GEMINI_API_KEY not set. AI analysis will be disabled.")
+            print("⚠️  Warning: GCP_PROJECT_ID not set. AI analysis will be disabled.")
     
     def extract_latex(self, image_bytes: bytes) -> dict:
         """

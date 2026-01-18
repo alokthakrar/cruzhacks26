@@ -1,14 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { uploadPDF } from '@/lib/api'
+import { uploadPDF, getSubjects, createSubject, getSubjectQuestions, Subject, Question } from '@/lib/api'
 
 // Type definitions
-type Folder = {
-  id: string
-  name: string
-  created_at: string
+type Folder = Subject & {
   pdfCount: number
   color: string
 }
@@ -31,26 +28,15 @@ const FOLDER_COLORS = [
   { name: 'Indigo', bg: 'from-indigo-50 to-indigo-100', icon: 'text-indigo-500', badge: 'bg-indigo-600' },
 ]
 
-// Fake data - pretending these came from the backend
-const FAKE_FOLDERS: Folder[] = [
-  {
-    id: '1',
-    name: 'Calculus',
-    created_at: '2026-01-15T10:30:00',
-    pdfCount: 3,
-    color: 'Blue',
-  },
-  {
-    id: '2',
-    name: 'Physics',
-    created_at: '2026-01-14T14:20:00',
-    pdfCount: 2,
-    color: 'Purple',
-  },
-]
+// Available folder colors
+const getRandomColor = () => {
+  const colors = ['Blue', 'Purple', 'Green', 'Orange', 'Pink', 'Indigo']
+  return colors[Math.floor(Math.random() * colors.length)]
+}
 
 export default function DashboardPage() {
-  const [folders, setFolders] = useState<Folder[]>(FAKE_FOLDERS)
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isDragging, setIsDragging] = useState(false)
   const [showCreateFolder, setShowCreateFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
@@ -58,23 +44,53 @@ export default function DashboardPage() {
   const [selectedColor, setSelectedColor] = useState('Blue')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [showQuestionsModal, setShowQuestionsModal] = useState(false)
+  const [extractedQuestions, setExtractedQuestions] = useState<Question[]>([])
+  const [uploadedPdfName, setUploadedPdfName] = useState('')
+
+  // Load subjects from backend on mount
+  useEffect(() => {
+    loadSubjects()
+  }, [])
+
+  const loadSubjects = async () => {
+    setIsLoading(true)
+    try {
+      const subjects = await getSubjects()
+      // Convert subjects to folders with colors and PDF count
+      const foldersWithMeta = subjects.map(s => ({
+        ...s,
+        pdfCount: 0, // TODO: Get actual count from backend
+        color: getRandomColor(),
+      }))
+      setFolders(foldersWithMeta)
+    } catch (error) {
+      console.error('Failed to load subjects:', error)
+      alert('Failed to load folders. Please refresh the page.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Handle creating a new folder
-  const handleCreateFolder = () => {
+  const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return
 
-    const newFolder: Folder = {
-      id: Date.now().toString(),
-      name: newFolderName,
-      created_at: new Date().toISOString(),
-      pdfCount: 0,
-      color: selectedColor,
+    try {
+      const newSubject = await createSubject({ name: newFolderName })
+      const newFolder: Folder = {
+        ...newSubject,
+        pdfCount: 0,
+        color: selectedColor,
+      }
+      setFolders([newFolder, ...folders])
+      setNewFolderName('')
+      setSelectedColor('Blue')
+      setShowCreateFolder(false)
+    } catch (error) {
+      console.error('Failed to create folder:', error)
+      alert(`Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
-
-    setFolders([newFolder, ...folders])
-    setNewFolderName('')
-    setSelectedColor('Blue')
-    setShowCreateFolder(false)
   }
 
   // Handle file upload - calls real API or uses fake data
@@ -95,11 +111,14 @@ export default function DashboardPage() {
           : folder
       ))
 
+      // Fetch the extracted questions to show in modal
+      const questionsResponse = await getSubjectQuestions(folderId, 1, 20)
+      setExtractedQuestions(questionsResponse.questions)
+      setUploadedPdfName(result.filename)
+      setShowQuestionsModal(true)
+
       // Reset selection
       setSelectedFolder('')
-
-      // Show success message
-      alert(`Success! Extracted ${result.question_count} questions from ${result.total_pages} pages.`)
     } catch (error) {
       console.error('Upload error:', error)
       setUploadError(error instanceof Error ? error.message : 'Upload failed')
@@ -298,6 +317,88 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Questions Preview Modal */}
+        {showQuestionsModal && (
+          <div className="fixed inset-0 backdrop-blur-sm bg-white/30 flex items-center justify-center z-50 p-4 animate-fade-in">
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 md:p-8 max-w-3xl w-full max-h-[80vh] shadow-2xl border border-gray-200/50 animate-scale-in flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Questions Extracted</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {uploadedPdfName} • {extractedQuestions.length} {extractedQuestions.length === 1 ? 'question' : 'questions'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowQuestionsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Scrollable Questions List */}
+              <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                {extractedQuestions.map((question, index) => (
+                  <div
+                    key={question.id}
+                    className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-gray-200 hover:shadow-lg transition-all duration-200"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Question Number Badge */}
+                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg px-3 py-1 font-bold text-sm flex-shrink-0">
+                        Q{question.question_number}
+                      </div>
+
+                      {/* Question Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-800 leading-relaxed break-words">
+                          {question.text_content}
+                        </p>
+                        
+                        {/* Metadata */}
+                        <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                          <span>Page {question.page_number}</span>
+                          {question.difficulty_estimate && (
+                            <>
+                              <span>•</span>
+                              <span className={`font-semibold ${
+                                question.difficulty_estimate === 'easy' ? 'text-green-600' :
+                                question.difficulty_estimate === 'medium' ? 'text-yellow-600' :
+                                'text-red-600'
+                              }`}>
+                                {question.difficulty_estimate.toUpperCase()}
+                              </span>
+                            </>
+                          )}
+                          {question.extraction_confidence && (
+                            <>
+                              <span>•</span>
+                              <span>Confidence: {(question.extraction_confidence * 100).toFixed(0)}%</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Footer */}
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => setShowQuestionsModal(false)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+                >
+                  Start Working on Questions
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Upload Area */}
         <div className="mb-12">
           <div className="mb-4">
@@ -385,8 +486,13 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Folders Grid */}
-        {folders.length > 0 ? (
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="text-center py-12 animate-fade-in">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
+            <p className="text-gray-600 text-lg">Loading your folders...</p>
+          </div>
+        ) : folders.length > 0 ? (
           <>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">
               Your Folders
@@ -451,7 +557,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Add keyframe animations */}
+      {/* Add keyframe animations and custom scrollbar */}
       <style jsx>{`
         @keyframes fadeInUp {
           from {
@@ -490,6 +596,24 @@ export default function DashboardPage() {
 
         .animate-scale-in {
           animation: scale-in 0.3s ease-out;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(229, 231, 235, 0.5);
+          border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(156, 163, 175, 0.8);
+          border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(107, 114, 128, 0.9);
         }
       `}</style>
     </div>

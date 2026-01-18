@@ -23,6 +23,9 @@ class SymbolicValidator:
             # Clean up the string
             expr_str = expr_str.strip().replace(' ', '')
             
+            # Convert to lowercase for consistent variable names (x vs X)
+            expr_str = expr_str.lower()
+            
             # Convert ^ to ** for exponentiation
             expr_str = expr_str.replace('^', '**')
             

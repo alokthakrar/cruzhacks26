@@ -20,6 +20,8 @@ export default function CanvasPage() {
   const [validationResults, setValidationResults] = useState<Map<number, ValidationResult>>(new Map());
   const [isValidating, setIsValidating] = useState(false);
   const [finalResult, setFinalResult] = useState<{correct: boolean, message: string} | null>(null);
+  const [ocrInProgress, setOcrInProgress] = useState<Set<number>>(new Set());
+  const [writingInProgress, setWritingInProgress] = useState<Set<number>>(new Set());
 
   const handleStrokeEnd = (lineNumber: number) => {
     // If writing on the last line, add a new line
@@ -37,6 +39,44 @@ export default function CanvasPage() {
         newMap.delete(lineNumber);
       }
       return newMap;
+    });
+  }, []);
+
+  const handleClearValidation = useCallback((lineNumber: number) => {
+    setValidationResults(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(lineNumber);
+      return newMap;
+    });
+  }, []);
+
+  const handleOcrStatusChange = useCallback((lineNumber: number, isProcessing: boolean) => {
+    setOcrInProgress(prev => {
+      const newSet = new Set(prev);
+      if (isProcessing) {
+        newSet.add(lineNumber);
+        // Clear writing status when OCR starts
+        setWritingInProgress(prevWriting => {
+          const newWritingSet = new Set(prevWriting);
+          newWritingSet.delete(lineNumber);
+          return newWritingSet;
+        });
+      } else {
+        newSet.delete(lineNumber);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleWritingStatusChange = useCallback((lineNumber: number, isWriting: boolean) => {
+    setWritingInProgress(prev => {
+      const newSet = new Set(prev);
+      if (isWriting) {
+        newSet.add(lineNumber);
+      } else {
+        newSet.delete(lineNumber);
+      }
+      return newSet;
     });
   }, []);
 
@@ -123,38 +163,68 @@ export default function CanvasPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Math Canvas</h1>
-
-        <ProblemInput value={problemText} onChange={setProblemText} />
-
-        <div className="space-y-0 pl-10">
-          {lines.map((lineNumber) => (
-            <MathLine
-              key={lineNumber}
-              lineNumber={lineNumber}
-              strokeColor={strokeColor}
-              strokeWidth={strokeWidth}
-              onStrokeEnd={() => handleStrokeEnd(lineNumber)}
-              onTextChange={handleTextChange}
-              validationResult={validationResults.get(lineNumber)}
-            />
-          ))}
+        {/* Problem Card */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6">
+          <ProblemInput value={problemText} onChange={setProblemText} />
         </div>
 
-        <div className="mt-6 flex flex-col items-center gap-4">
+        {/* Work Section */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-6">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-2">
+            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2"/>
+              <line x1="9" y1="3" x2="9" y2="21" strokeWidth="2"/>
+            </svg>
+            <span className="font-semibold text-gray-900">Show Your Work</span>
+            <span className="text-sm text-gray-500">Write each step on a new line</span>
+          </div>
+
+          <div>
+            {lines.map((lineNumber) => (
+              <MathLine
+                key={lineNumber}
+                lineNumber={lineNumber}
+                strokeColor={strokeColor}
+                strokeWidth={strokeWidth}
+                onStrokeEnd={() => handleStrokeEnd(lineNumber)}
+                onTextChange={handleTextChange}
+                validationResult={validationResults.get(lineNumber)}
+                onClearValidation={handleClearValidation}
+                onOcrStatusChange={handleOcrStatusChange}
+                onWritingStatusChange={handleWritingStatusChange}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Submit Button */}
+        <div className="flex flex-col items-center gap-4">
           <button
             onClick={handleValidateAll}
-            disabled={isValidating}
-            className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+            disabled={isValidating || ocrInProgress.size > 0 || writingInProgress.size > 0}
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
-            {isValidating ? "⏳ Checking..." : "Submit"}
+            {writingInProgress.size > 0 ? (
+              "✍️ Writing..."
+            ) : ocrInProgress.size > 0 ? (
+              "⏳ Processing handwriting..."
+            ) : isValidating ? (
+              "⏳ Checking..."
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                Check My Answer
+              </>
+            )}
           </button>
 
           {/* Final Result Message */}
           {finalResult && (
-            <div className={`px-6 py-4 rounded-lg border-2 font-semibold text-lg ${
+            <div className={`w-full px-6 py-4 rounded-xl border-2 font-semibold text-center ${
               finalResult.correct 
                 ? "bg-green-50 border-green-500 text-green-700" 
                 : "bg-yellow-50 border-yellow-500 text-yellow-700"

@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { ReactSketchCanvasRef } from "react-sketch-canvas";
 import { useOCR } from "@/hooks/useOCR";
+import { AlertCircle, Lightbulb } from "lucide-react";
 
 const ReactSketchCanvas = dynamic(
     () => import("react-sketch-canvas").then((mod) => mod.ReactSketchCanvas),
@@ -24,6 +25,9 @@ interface MathLineProps {
     onStrokeEnd?: () => void;
     onTextChange?: (lineNumber: number, text: string) => void;
     validationResult?: ValidationResult | null;
+    onClearValidation?: (lineNumber: number) => void;
+    onOcrStatusChange?: (lineNumber: number, isProcessing: boolean) => void;
+    onWritingStatusChange?: (lineNumber: number, isWriting: boolean) => void;
 }
 
 export default function MathLine({
@@ -33,6 +37,9 @@ export default function MathLine({
     onStrokeEnd,
     onTextChange,
     validationResult,
+    onClearValidation,
+    onOcrStatusChange,
+    onWritingStatusChange,
 }: MathLineProps) {
     const canvasRef = useRef<ReactSketchCanvasRef>(null);
     const [latex, setLatex] = useState<string>("");
@@ -49,6 +56,7 @@ export default function MathLine({
         if (!canvasRef.current) return;
 
         try {
+            onOcrStatusChange?.(lineNumber, true);
             const dataUrl = await canvasRef.current.exportImage("png");
             const response = await fetch(dataUrl);
             const blob = await response.blob();
@@ -57,10 +65,15 @@ export default function MathLine({
             setLatex(result);
         } catch (err) {
             console.error("OCR check failed:", err);
+        } finally {
+            onOcrStatusChange?.(lineNumber, false);
         }
     };
 
     const handleStroke = () => {
+        // Mark as writing in progress
+        onWritingStatusChange?.(lineNumber, true);
+        
         // Clear existing timer
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
@@ -77,11 +90,14 @@ export default function MathLine({
     const handleClear = () => {
         canvasRef.current?.clearCanvas();
         setLatex("");
-        
+
         // Clear debounce timer
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
         }
+
+        // Clear validation result
+        onClearValidation?.(lineNumber);
     };
 
     // Cleanup timer on unmount
@@ -96,26 +112,63 @@ export default function MathLine({
     // Determine border color based on validation
     const getBorderColor = () => {
         if (validationResult === null || validationResult === undefined) {
-            return "border-gray-300";
+            return "border-l-blue-400";
         }
-        // Yellow/orange for warnings, green for valid, red for invalid
         if (validationResult.warning) {
-            return "border-yellow-500";
+            return "border-l-yellow-500";
         }
-        return validationResult.is_valid ? "border-green-500" : "border-red-500";
+        return validationResult.is_valid ? "border-l-green-500" : "border-l-red-500";
+    };
+
+    const getBgColor = () => {
+        if (validationResult === null || validationResult === undefined) {
+            return "";
+        }
+        if (validationResult.warning) {
+            return "bg-yellow-50";
+        }
+        return validationResult.is_valid ? "bg-green-50" : "bg-red-50";
     };
 
     return (
-        <div className={`relative border-2 ${getBorderColor()} rounded-lg bg-white overflow-visible mb-3`}>
-            {/* Line number indicator */}
-            <div className="absolute -left-8 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-sm">
+        <div className={`relative flex border-b border-gray-200 hover:bg-gray-50 transition-colors ${getBgColor()}`}>
+            {/* Left border indicator */}
+            <div className={`w-1 border-l-4 ${getBorderColor()}`}></div>
+
+            {/* Line number */}
+            <div className="w-12 flex-shrink-0 flex items-center justify-center text-sm text-gray-400">
                 {lineNumber}
             </div>
 
-            {/* OCR Result Display with Edit */}
-            {latex && (
-                <div className="absolute top-2 right-16 bg-blue-50 border border-blue-300 rounded px-3 py-1 shadow-md z-10 max-w-md flex items-center gap-2">
-                    {isEditing ? (
+            {/* Canvas area */}
+            <div className="flex-1 relative h-24 bg-white">
+                <ReactSketchCanvas
+                    ref={canvasRef}
+                    width="100%"
+                    height="100%"
+                    strokeWidth={strokeWidth}
+                    strokeColor={strokeColor}
+                    canvasColor="white"
+                    onStroke={handleStroke}
+                    style={{ position: "absolute", inset: 0 }}
+                />
+
+                {/* OCR Result Display with Edit */}
+                {latex && !isEditing && (
+                    <div className="absolute bottom-2 left-4 right-16 bg-blue-50 border border-blue-200 rounded px-2 py-1 text-sm font-mono text-gray-800 flex items-center justify-between">
+                        <span>{latex}</span>
+                        <button
+                            onClick={() => setIsEditing(true)}
+                            className="ml-2 px-2 py-0.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                        >
+                            Edit
+                        </button>
+                    </div>
+                )}
+
+                {/* Editing mode */}
+                {isEditing && (
+                    <div className="absolute inset-0 flex items-center px-4 bg-white/95 z-10">
                         <input
                             type="text"
                             value={latex}
@@ -127,77 +180,51 @@ export default function MathLine({
                                 }
                             }}
                             autoFocus
-                            className="text-sm border px-2 py-1 rounded w-48"
+                            className="flex-1 text-sm border border-blue-300 px-2 py-1 rounded font-mono"
                         />
-                    ) : (
-                        <>
-                            <div className="text-sm font-mono">
-                                {latex}
-                            </div>
-                            <button
-                                onClick={() => setIsEditing(true)}
-                                className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                            >
-                                Edit
-                            </button>
-                        </>
-                    )}
-                </div>
-            )}
-
-            {/* Warning Message (valid but could be better) */}
-            {validationResult && validationResult.is_valid && validationResult.warning && (
-                <div className="absolute top-2 left-2 group z-10">
-                    <div className="text-yellow-500 text-xl cursor-help">⚠️</div>
-                    <div className="hidden group-hover:block absolute top-8 left-0 bg-yellow-50 border border-yellow-300 rounded px-3 py-2 shadow-md max-w-md whitespace-normal">
-                        <div className="text-xs font-semibold text-yellow-700 mb-1">Note</div>
-                        <div className="text-xs text-yellow-700">{validationResult.warning}</div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Validation Error */}
-            {validationResult && !validationResult.is_valid && (
-                <div className="absolute top-2 left-2 group z-10">
-                    <div className="text-red-500 text-xl cursor-help">❌</div>
-                    <div className="hidden group-hover:block absolute top-8 left-0 bg-red-50 border border-red-300 rounded px-3 py-2 shadow-md max-w-md whitespace-normal">
-                        <div className="text-xs font-semibold text-red-700 mb-1">Incorrect transformation</div>
-                        <div className="text-xs text-red-600">{validationResult.error || validationResult.explanation}</div>
+                {/* Validation icons with hover tooltip */}
+                {validationResult && !validationResult.is_valid && (
+                    <div className="absolute top-2 left-2 group z-10">
+                        <AlertCircle className="w-6 h-6 text-red-500 cursor-help animate-pulse drop-shadow-lg" />
+                        <div className="hidden group-hover:block absolute top-full left-0 mt-1 bg-red-50 border-2 border-red-300 px-4 py-3 shadow-xl min-w-[250px] max-w-sm whitespace-normal z-20">
+                            <div className="text-sm font-semibold text-red-700 mb-1">Incorrect transformation</div>
+                            <div className="text-sm text-red-600">{validationResult.error || validationResult.explanation}</div>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* OCR Error Display */}
-            {error && (
-                <div className="absolute top-2 right-16 bg-red-50 border border-red-300 rounded px-3 py-1 shadow-md z-10 max-w-md">
-                    <div className="text-xs text-red-600">{error}</div>
-                </div>
-            )}
+                {validationResult && validationResult.is_valid && validationResult.warning && (
+                    <div className="absolute top-2 left-2 group z-10">
+                        <Lightbulb className="w-6 h-6 text-yellow-500 cursor-help animate-pulse drop-shadow-lg" />
+                        <div className="hidden group-hover:block absolute top-full left-0 mt-1 bg-yellow-50 border-2 border-yellow-300 px-4 py-3 shadow-xl min-w-[250px] max-w-sm whitespace-normal z-20">
+                            <div className="text-sm font-semibold text-yellow-700 mb-1">Hint</div>
+                            <div className="text-sm text-yellow-700">{validationResult.warning}</div>
+                        </div>
+                    </div>
+                )}
 
-            {/* Canvas Container */}
-            <div className="flex items-center">
-                <div className="flex-1">
-                    <ReactSketchCanvas
-                        ref={canvasRef}
-                        width="100%"
-                        height="100px"
-                        strokeWidth={strokeWidth}
-                        strokeColor={strokeColor}
-                        canvasColor="#ffffff"
-                        onStroke={handleStroke}
-                    />
-                </div>
+                {/* OCR Error Display */}
+                {error && (
+                    <div className="absolute top-2 right-16 bg-red-50 border border-red-300 rounded px-3 py-1 shadow-md z-10 max-w-md">
+                        <div className="text-xs text-red-600">{error}</div>
+                    </div>
+                )}
+            </div>
 
-                {/* Clear Button on the right */}
-                <div className="flex flex-col gap-1 p-2 border-l border-gray-300">
-                    <button
-                        onClick={handleClear}
-                        className="px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 whitespace-nowrap"
-                        title="Clear this line"
-                    >
-                        ×
-                    </button>
-                </div>
+            {/* Clear button */}
+            <div className="w-16 flex-shrink-0 flex items-center justify-center border-l border-gray-200">
+                <button
+                    onClick={handleClear}
+                    className="w-full h-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-red-500 transition-colors"
+                    title="Clear this line"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
         </div>
     );

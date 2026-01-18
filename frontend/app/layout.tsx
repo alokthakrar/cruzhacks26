@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
-import { Archivo } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import { Archivo, Caveat } from "next/font/google";
 import "./globals.css";
 
 const archivo = Archivo({
   variable: "--font-archivo",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+});
+
+const caveat = Caveat({
+  variable: "--font-caveat",
+  subsets: ["latin"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
@@ -22,7 +29,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${archivo.variable} antialiased`}
-        style={{ fontFamily: 'var(--font-archivo), sans-serif' }}
+        style={{ fontFamily: "var(--font-archivo), sans-serif" }}
         suppressHydrationWarning
       >
         {children}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Title from "./components/title";
 import Info from "./components/info";
+import MathBackground from "./components/math-background";
 import { Archivo } from "next/font/google";
 
 const archivo = Archivo({ subsets: ["latin"] });
@@ -37,8 +38,10 @@ export default function Home() {
         flexDirection: "column",
         gap: 16,
         position: "relative",
+        zIndex: 1,
       }}
     >
+      <MathBackground />
       <Title onOwlClick={handleOwlClick} />
       <div
         style={{

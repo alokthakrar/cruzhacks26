@@ -11,16 +11,23 @@ from ..models.session import Session, SessionCreate
 router = APIRouter(prefix="/subjects", tags=["subjects"])
 
 
-@router.get("", response_model=List[Subject])
+@router.get("")
 async def list_subjects(user_id: str = Depends(get_current_user_id)):
     """List all subjects for the current user."""
     collection = get_subjects_collection()
     cursor = collection.find({"user_id": user_id}).sort("last_accessed", -1)
     subjects = await cursor.to_list(length=100)
-    return [Subject(**s) for s in subjects]
+    # Convert _id to id for frontend and return as plain dicts
+    result = []
+    for s in subjects:
+        s['id'] = s.pop('_id')  # Rename _id to id
+        s['created_at'] = s['created_at'].isoformat()
+        s['last_accessed'] = s['last_accessed'].isoformat()
+        result.append(s)
+    return result
 
 
-@router.post("", response_model=Subject, status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_subject(
     subject_data: SubjectCreate,
     user_id: str = Depends(get_current_user_id),
@@ -38,7 +45,14 @@ async def create_subject(
     }
 
     await collection.insert_one(subject_doc)
-    return Subject(**subject_doc)
+    # Return as plain dict with id instead of _id
+    return {
+        "id": subject_doc["_id"],
+        "user_id": subject_doc["user_id"],
+        "name": subject_doc["name"],
+        "created_at": subject_doc["created_at"].isoformat(),
+        "last_accessed": subject_doc["last_accessed"].isoformat(),
+    }
 
 
 @router.get("/{subject_id}", response_model=Subject)

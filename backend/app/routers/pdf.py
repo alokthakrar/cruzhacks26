@@ -12,6 +12,7 @@ from ..models.question import (
     PDFQuestionsListResponse,
 )
 from ..services.pdf_extractor import pdf_extractor_service
+from ..services.knowledge_graph_generator import knowledge_graph_generator
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
@@ -107,12 +108,33 @@ async def upload_pdf(
         questions_collection = get_questions_collection()
         question_count = 0
 
-        for q in result["questions"]:
+        # Tag questions with concepts if subject_id is provided
+        concept_ids = []
+        if subject_id and result["questions"]:
+            # Prepare questions for batch tagging
+            questions_for_tagging = [
+                {
+                    "text_content": q.get("text_content", ""),
+                    "latex_content": q.get("latex_content")
+                }
+                for q in result["questions"]
+            ]
+            concept_ids = await knowledge_graph_generator.tag_questions_batch(
+                questions_for_tagging,
+                subject_id
+            )
+            print(f"Tagged {len(concept_ids)} questions with concepts: {concept_ids}")
+
+        for i, q in enumerate(result["questions"]):
+            # Get concept_id from batch tagging result, or None
+            concept_id = concept_ids[i] if i < len(concept_ids) else None
+
             question_doc = {
                 "_id": str(ObjectId()),
                 "pdf_id": pdf_id,
-                "user_id": user_id,
+                "created_by": user_id,
                 "subject_id": subject_id,
+                "concept_id": concept_id,
                 "page_number": q.get("page_number", 1),
                 "question_number": q.get("question_number", 1),
                 "text_content": q.get("text_content", ""),
@@ -122,6 +144,9 @@ async def upload_pdf(
                 "bounding_box": q.get("bounding_box", {"x": 0, "y": 0, "width": 100, "height": 50}),
                 "cropped_image": q.get("cropped_image", ""),
                 "extraction_confidence": q.get("confidence", 0.0),
+                "elo_rating": 1200,
+                "times_attempted": 0,
+                "times_correct": 0,
                 "created_at": datetime.utcnow(),
             }
             await questions_collection.insert_one(question_doc)
@@ -341,7 +366,7 @@ async def get_subject_questions(
         )
 
     # Build query
-    query = {"subject_id": subject_id, "user_id": user_id}
+    query = {"subject_id": subject_id, "created_by": user_id}
     if question_type:
         query["question_type"] = question_type
     if difficulty:

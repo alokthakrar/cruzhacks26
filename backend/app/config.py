@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     auth0_algorithms: str = "RS256"
     skip_auth: bool = True  # Set to False in production
 
-    # Google Gemini AI (Vertex AI)
-    gemini_api_key: str = ""  # Deprecated - using Vertex AI now
-    gcp_project_id: str = ""
+    # Google Gemini AI
+    google_api_key: str = ""  # Google AI Studio API key (preferred)
+    gcp_project_id: str = ""  # For Vertex AI (fallback)
     gcp_location: str = "us-central1"
 
     @property

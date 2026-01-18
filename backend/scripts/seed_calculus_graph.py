@@ -9,11 +9,14 @@ Usage:
 
 import asyncio
 import sys
+import os
 from pathlib import Path
 from datetime import datetime
 
-# Add parent directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent))
+# Add parent directory to path for imports and change to backend dir for .env
+backend_dir = Path(__file__).parent.parent
+sys.path.append(str(backend_dir))
+os.chdir(backend_dir)
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId

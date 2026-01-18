@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+@keyframes fadeInCanvas {
+  from {
+    opacity: 0 !important;
+  }
+  to {
+    opacity: 0.6 !important;
+  }
+}
+
+@keyframes fadeOutCanvas {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#math-bg {
+  animation: fadeInCanvas 5s ease-in-out forwards !important;
+}
+
 .paper {
   position: relative;
   background-color: #fafafa;

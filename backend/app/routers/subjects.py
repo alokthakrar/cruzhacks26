@@ -7,6 +7,7 @@ from ..auth import get_current_user_id
 from ..database import get_subjects_collection, get_sessions_collection
 from ..models.subject import Subject, SubjectCreate, SubjectUpdate
 from ..models.session import Session, SessionCreate
+from ..services.knowledge_graph_generator import knowledge_graph_generator
 
 router = APIRouter(prefix="/subjects", tags=["subjects"])
 
@@ -32,7 +33,7 @@ async def create_subject(
     subject_data: SubjectCreate,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Create a new subject."""
+    """Create a new subject and auto-generate a knowledge graph."""
     collection = get_subjects_collection()
 
     now = datetime.utcnow()
@@ -45,6 +46,20 @@ async def create_subject(
     }
 
     await collection.insert_one(subject_doc)
+
+    # Auto-generate knowledge graph based on subject name
+    print(f"\nCreating subject '{subject_data.name}' with ID: {subject_doc['_id']}")
+    graph = await knowledge_graph_generator.generate_graph(
+        subject_name=subject_data.name,
+        subject_id=subject_doc["_id"],
+        user_id=user_id
+    )
+
+    if graph:
+        print(f"Knowledge graph linked to subject {subject_doc['_id']}")
+    else:
+        print(f"WARNING: No knowledge graph created for subject {subject_doc['_id']}")
+
     # Return as plain dict with id instead of _id
     return {
         "id": subject_doc["_id"],
@@ -52,6 +67,7 @@ async def create_subject(
         "name": subject_doc["name"],
         "created_at": subject_doc["created_at"].isoformat(),
         "last_accessed": subject_doc["last_accessed"].isoformat(),
+        "knowledge_graph_created": graph is not None,
     }
 
 

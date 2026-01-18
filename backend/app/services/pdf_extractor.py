@@ -49,27 +49,46 @@ class PDFExtractorService:
 
     def __init__(self):
         self.gemini_model = None
+        self.use_google_ai = False
         self.dpi = 200  # Resolution for PDF-to-image conversion
 
     def load_model(self):
-        """Configure Vertex AI Gemini. Called during app startup."""
-        import vertexai
-        from vertexai.generative_models import GenerativeModel
-        
+        """Configure Gemini model at startup. Tries Google AI Studio first, then Vertex AI."""
         settings = get_settings()
+
+        # Try Google AI Studio first (simpler API key auth)
+        if settings.google_api_key:
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=settings.google_api_key)
+                self.gemini_model = genai.GenerativeModel("gemini-2.0-flash-exp")
+                self.use_google_ai = True
+                print("✅ PDF Extractor: Using Google AI Studio (gemini-2.0-flash-exp)")
+                return
+            except Exception as e:
+                print(f"⚠️  PDF Extractor: Failed to init Google AI Studio: {e}")
+
+        # Fall back to Vertex AI (service account auth)
         if settings.gcp_project_id:
-            print("🔄 Configuring Vertex AI for PDF extraction...")
-            # Set auth.json path
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "auth.json"
-            
-            # Initialize Vertex AI
-            vertexai.init(project=settings.gcp_project_id, location=settings.gcp_location)
-            
-            # Use gemini-2.5-flash for $300 credits
-            self.gemini_model = GenerativeModel("gemini-2.5-flash")
-            print("✅ Vertex AI configured for PDF extraction with gemini-2.5-flash")
-        else:
-            print("⚠️  Warning: GCP_PROJECT_ID not set. PDF extraction will be disabled.")
+            try:
+                import vertexai
+                from vertexai.generative_models import GenerativeModel
+                print("🔄 Configuring Vertex AI for PDF extraction...")
+                # Set auth.json path
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "auth.json"
+                
+                # Initialize Vertex AI
+                vertexai.init(project=settings.gcp_project_id, location=settings.gcp_location)
+                
+                # Use gemini-2.5-flash for $300 credits
+                self.gemini_model = GenerativeModel("gemini-2.5-flash")
+                self.use_google_ai = False
+                print("✅ PDF Extractor: Using Vertex AI (gemini-2.5-flash)")
+                return
+            except Exception as e:
+                print(f"⚠️  PDF Extractor: Failed to init Vertex AI: {e}")
+
+        print("⚠️  Warning: No API configured. PDF extraction will be disabled.")
 
     def pdf_to_images(self, pdf_bytes: bytes) -> List[bytes]:
         """
@@ -267,8 +286,6 @@ class PDFExtractorService:
             raise GeminiExtractionError("Gemini model not configured")
 
         try:
-            from vertexai.generative_models import Part
-            
             # Open image to get dimensions
             image = Image.open(io.BytesIO(page_image_bytes))
             img_width, img_height = image.size
@@ -319,10 +336,16 @@ NOT just: [50, 80, 80, 450]  (3% of page - only question text, WRONG!)
 
 If no questions found: {"questions": []}"""
 
-            # Vertex AI requires Part objects for images, not PIL Images
-            image_part = Part.from_data(data=page_image_bytes, mime_type="image/png")
+            # Prepare image based on API type
+            if self.use_google_ai:
+                # Google AI Studio uses PIL Images directly
+                image_input = image
+            else:
+                # Vertex AI requires Part objects for images
+                from vertexai.generative_models import Part
+                image_input = Part.from_data(data=page_image_bytes, mime_type="image/png")
             
-            response = self.gemini_model.generate_content([prompt, image_part])
+            response = self.gemini_model.generate_content([prompt, image_input])
             response_text = response.text.strip()
 
             # Strip markdown code blocks

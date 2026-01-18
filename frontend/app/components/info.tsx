@@ -47,7 +47,8 @@ export default function Info({ title, blurb, imageSrc, imageAlt, reversed = fals
             width: "100%",
             height: "auto",
             borderRadius: 12,
-            boxShadow: "0 12px 24px rgba(0,0,0,0.08)",
+            boxShadow: "0 16px 32px rgba(0,0,0,0.15)",
+            border: "1px solid rgba(0, 0, 0, 0.8)",
           }}
           priority
         />

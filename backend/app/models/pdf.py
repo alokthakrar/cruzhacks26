@@ -15,7 +15,7 @@ class PDFQuestion(BaseModel):
     """A question extracted from a PDF."""
     id: str = Field(alias="_id")
     pdf_id: str
-    user_id: str
+    created_by: str
     subject_id: Optional[str] = None
     page_number: int
     question_number: int

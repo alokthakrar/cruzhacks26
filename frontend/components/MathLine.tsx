@@ -59,6 +59,7 @@ export default function MathLine({
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [visualFeedback, setVisualFeedback] = useState<VisualFeedback | null>(null);
     const [showHint, setShowHint] = useState(false);
+    const [hintMessage, setHintMessage] = useState<string | null>(null);
     const [canvasHeight, setCanvasHeight] = useState(96); // h-24 = 96px
     const [isResizing, setIsResizing] = useState(false);
     const resizeStartY = useRef(0);
@@ -79,13 +80,34 @@ export default function MathLine({
 
             const result = await performOCR(blob, problemContext, previousStep);
             if (result) {
-                setLatex(result.latex);
-                // Set visual feedback if Gemini detected an error
-                console.log('📍 [OCR] Visual Feedback from Gemini:', result.visualFeedback);
-                console.log('📍 [OCR] Setting visual feedback state');
-                setVisualFeedback(result.visualFeedback);
-                // Check if user is requesting a hint
-                setShowHint(result.latex.toLowerCase().includes("hint"));
+                const extractedText = result.latex.toLowerCase().trim();
+
+                // Check if user is requesting a hint by writing "hint"
+                if (extractedText === "hint" || extractedText === "hint?" || extractedText.includes("hint")) {
+                    console.log('💡 [HINT] User requested a hint, fetching from LLM...');
+                    // Don't set latex to avoid triggering sympy validation
+                    setShowHint(true);
+                    setHintMessage("Loading hint...");
+                    setVisualFeedback(null); // Clear any error feedback
+
+                    // Make a second call to get the actual hint from the LLM
+                    const hintResult = await performOCR(blob, problemContext, previousStep, true);
+                    if (hintResult?.visualFeedback?.visual_feedback) {
+                        console.log('💡 [HINT] Got hint from LLM:', hintResult.visualFeedback.visual_feedback);
+                        setHintMessage(hintResult.visualFeedback.visual_feedback);
+                    } else {
+                        setHintMessage("Try thinking about what operation would help isolate the variable.");
+                    }
+                    // Don't call onTextChange - bypass sympy validation entirely
+                    return;
+                } else {
+                    setLatex(result.latex);
+                    // Set visual feedback if Gemini detected an error
+                    console.log('📍 [OCR] Visual Feedback from Gemini:', result.visualFeedback);
+                    console.log('📍 [OCR] Setting visual feedback state');
+                    setVisualFeedback(result.visualFeedback);
+                    setShowHint(false);
+                }
             }
         } catch (err) {
             console.error("OCR check failed:", err);
@@ -93,9 +115,11 @@ export default function MathLine({
     };
 
     const handleStroke = () => {
-        // Clear visual feedback while writing
-        console.log('✏️ [STROKE] Clearing visual feedback');
+        // Clear visual feedback and hints while writing
+        console.log('✏️ [STROKE] Clearing visual feedback and hints');
         setVisualFeedback(null);
+        setShowHint(false);
+        setHintMessage(null);
 
         // Clear validation result while writing
         onClearValidation?.(lineNumber);
@@ -116,9 +140,10 @@ export default function MathLine({
     const handleClear = () => {
         canvasRef.current?.clearCanvas();
         setLatex("");
-        console.log('🧹 [CLEAR] Clearing visual feedback');
+        console.log('🧹 [CLEAR] Clearing visual feedback and hints');
         setVisualFeedback(null);
         setShowHint(false);
+        setHintMessage(null);
 
         // Clear debounce timer
         if (debounceTimerRef.current) {
@@ -212,8 +237,22 @@ export default function MathLine({
                         style={{ position: "absolute", inset: 0 }}
                     />
 
-                    {/* Visual Feedback Overlay with Yellow Tooltip */}
-                    {showVisualFeedback && visualFeedback?.bounding_box && (
+                    {/* Hint Popup - shown when user writes "hint" */}
+                    {showHint && hintMessage && (
+                        <div className="absolute inset-2 flex items-center justify-center z-20 pointer-events-none">
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 px-5 py-4 shadow-xl rounded-xl max-w-md animate-fade-in pointer-events-auto">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Lightbulb className="w-5 h-5 text-blue-600" />
+                                    <span className="text-base font-semibold text-blue-800">Hint</span>
+                                </div>
+                                <div className="text-sm text-blue-700 leading-relaxed">{hintMessage}</div>
+                                <div className="mt-3 text-xs text-blue-500">Start writing to dismiss</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Visual Feedback Overlay with Yellow Tooltip (for errors) */}
+                    {showVisualFeedback && !showHint && visualFeedback?.bounding_box && (
                         <div
                             className="absolute border-2 border-red-500 bg-red-500/10 z-10 transition-all duration-500 group/feedback cursor-help"
                             style={{

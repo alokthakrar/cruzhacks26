@@ -6,6 +6,9 @@ DESIGN.md
 .env.local
 .env.*.local
 
+# Authentication files
+auth.json
+
 # Python
 __pycache__/
 *.py[cod]

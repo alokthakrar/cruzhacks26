@@ -26,6 +26,13 @@ from .answer_submission import (
     AnswerSubmissionCreate,
     AnswerSubmissionResponse,
 )
+from .pdf import (
+    BoundingBox,
+    PDFQuestion,
+    PDFDocument,
+    PDFUploadResponse,
+    QuestionListResponse,
+)
 
 __all__ = [
     "UserState",
@@ -55,4 +62,9 @@ __all__ = [
     "AnswerSubmission",
     "AnswerSubmissionCreate",
     "AnswerSubmissionResponse",
+    "BoundingBox",
+    "PDFQuestion",
+    "PDFDocument",
+    "PDFUploadResponse",
+    "QuestionListResponse",
 ]

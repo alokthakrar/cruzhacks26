@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import connect_to_mongo, close_mongo_connection
-from .routers import users, subjects, analyze
+from .routers import users, subjects, analyze, pdf
 from .api import bkt
 # from .services.ocr import ocr_service  # Disabled for BKT testing - pyarrow dependency issue
 
@@ -40,6 +40,7 @@ app.add_middleware(
 # Include routers
 app.include_router(users.router, prefix="/api")
 app.include_router(subjects.router, prefix="/api")
+app.include_router(pdf.router, prefix="/api")
 # app.include_router(analyze.router, prefix="/api")  # Disabled for BKT testing - pyarrow issue
 app.include_router(bkt.router)
 

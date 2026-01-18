@@ -74,7 +74,7 @@ export default function Home() {
         )}
       </div>
       <Info
-        title="Upload problems. Work through them."
+        title="Upload your math problems. Perch will help you through them."
         blurb="Perch watches your reasoning and offers guidance as you work."
         imageSrc="/dashboard.png"
         imageAlt="Perch dashboard mockup"

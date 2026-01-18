@@ -105,7 +105,7 @@ export default function MathBackground() {
           r: rand(-0.002, 0.002),
           rot: rand(-0.2, 0.2),
           size: rand(35, 55),
-          alpha: rand(0.15, 0.21),
+          alpha: rand(0.3, 0.35),
           type: kind < 0.6 ? "text" : "graph",
           text:
             kind < 0.3

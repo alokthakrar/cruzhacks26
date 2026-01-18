@@ -2,7 +2,7 @@
 
 // Toggle between fake and real data
 // Set to false when backend is running
-export const USE_FAKE_DATA = true
+export const USE_FAKE_DATA = false
 
 // Backend API base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
@@ -45,6 +45,22 @@ export type QuestionsListResponse = {
   total: number
   page: number
   limit: number
+}
+
+export type Subject = {
+  id: string
+  name: string
+  user_id: string
+  created_at: string
+  last_accessed: string
+}
+
+export type SubjectCreate = {
+  name: string
+}
+
+export type SubjectUpdate = {
+  name?: string
 }
 
 // Fake data for testing
@@ -267,4 +283,87 @@ export async function getQuestion(
   }
 
   return await response.json()
+}
+
+// ===== Subjects (Folders) API =====
+
+/**
+ * Get all subjects (folders) for the current user
+ */
+export async function getSubjects(): Promise<Subject[]> {
+  const response = await fetch(`${API_BASE_URL}/subjects`, {
+    // TODO: Add auth header when ready
+    // headers: {
+    //   'Authorization': `Bearer ${getAuthToken()}`,
+    // },
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch subjects')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Create a new subject (folder)
+ */
+export async function createSubject(data: SubjectCreate): Promise<Subject> {
+  const response = await fetch(`${API_BASE_URL}/subjects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      // TODO: Add auth header when ready
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to create subject')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Update a subject (folder)
+ */
+export async function updateSubject(subjectId: string, data: SubjectUpdate): Promise<Subject> {
+  const response = await fetch(`${API_BASE_URL}/subjects/${subjectId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      // TODO: Add auth header when ready
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to update subject')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Delete a subject (folder)
+ */
+export async function deleteSubject(subjectId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/subjects/${subjectId}`, {
+    method: 'DELETE',
+    // TODO: Add auth header when ready
+    // headers: {
+    //   'Authorization': `Bearer ${getAuthToken()}`,
+    // },
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to delete subject')
+  }
 }

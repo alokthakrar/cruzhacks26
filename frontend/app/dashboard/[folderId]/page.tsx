@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { getSubjectQuestions, Question } from '@/lib/api'
 
-// Type definitions
-type Question = {
+// Type definitions for UI
+type UIQuestion = {
   id: string
   questionText: string
   questionNumber: number
@@ -13,73 +14,58 @@ type Question = {
   created_at: string
 }
 
-// Fake data - pretending these came from the backend after AI parsed the PDF
-const FAKE_QUESTIONS: { [key: string]: Question[] } = {
-  '1': [
-    {
-      id: 'q1',
-      questionText: 'Find the derivative of f(x) = 3x² + 2x - 5',
-      questionNumber: 1,
-      pdfName: 'Calculus Chapter 3',
-      created_at: '2026-01-15T10:30:00',
-    },
-    {
-      id: 'q2',
-      questionText: 'Evaluate the integral: ∫(4x³ - 2x + 1)dx',
-      questionNumber: 2,
-      pdfName: 'Calculus Chapter 3',
-      created_at: '2026-01-15T10:30:00',
-    },
-    {
-      id: 'q3',
-      questionText: 'Using the chain rule, find dy/dx for y = sin(x²)',
-      questionNumber: 3,
-      pdfName: 'Calculus Chapter 3',
-      created_at: '2026-01-15T10:30:00',
-    },
-    {
-      id: 'q4',
-      questionText: 'Find the critical points of f(x) = x³ - 6x² + 9x + 2',
-      questionNumber: 4,
-      pdfName: 'Calculus Chapter 3',
-      created_at: '2026-01-15T10:30:00',
-    },
-  ],
-  '2': [
-    {
-      id: 'q5',
-      questionText: 'A 5kg object is accelerating at 3m/s². What is the net force?',
-      questionNumber: 1,
-      pdfName: 'Physics Problem Set',
-      created_at: '2026-01-14T14:20:00',
-    },
-    {
-      id: 'q6',
-      questionText: 'Calculate the momentum of a 10kg object moving at 15m/s',
-      questionNumber: 2,
-      pdfName: 'Physics Problem Set',
-      created_at: '2026-01-14T14:20:00',
-    },
-  ],
-}
+const FOLDER_COLORS = [
+  { bg: 'from-blue-50 to-blue-100', icon: 'text-blue-500' },
+  { bg: 'from-purple-50 to-purple-100', icon: 'text-purple-500' },
+  { bg: 'from-green-50 to-green-100', icon: 'text-green-500' },
+  { bg: 'from-orange-50 to-orange-100', icon: 'text-orange-500' },
+  { bg: 'from-pink-50 to-pink-100', icon: 'text-pink-500' },
+  { bg: 'from-indigo-50 to-indigo-100', icon: 'text-indigo-500' },
+]
 
-const FOLDER_NAMES: { [key: string]: string } = {
-  '1': 'Calculus',
-  '2': 'Physics',
-}
-
-const FOLDER_COLORS: { [key: string]: { bg: string; icon: string } } = {
-  '1': { bg: 'from-blue-50 to-blue-100', icon: 'text-blue-500' },
-  '2': { bg: 'from-purple-50 to-purple-100', icon: 'text-purple-500' },
+const getRandomFolderColor = () => {
+  return FOLDER_COLORS[Math.floor(Math.random() * FOLDER_COLORS.length)]
 }
 
 export default function FolderQuestionsPage() {
   const params = useParams()
   const folderId = params.folderId as string
 
-  const [questions, setQuestions] = useState<Question[]>(FAKE_QUESTIONS[folderId] || [])
-  const folderName = FOLDER_NAMES[folderId] || 'Unknown Folder'
-  const folderColor = FOLDER_COLORS[folderId] || FOLDER_COLORS['1']
+  const [questions, setQuestions] = useState<UIQuestion[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [folderName, setFolderName] = useState('Loading...')
+  const [folderColor] = useState(getRandomFolderColor())
+
+  // Load questions from API
+  const loadQuestions = async () => {
+    setIsLoading(true)
+    try {
+      const response = await getSubjectQuestions(folderId, 1, 100)
+      // Convert API questions to UI format
+      const uiQuestions: UIQuestion[] = response.questions.map(q => ({
+        id: q.id,
+        questionText: q.text_content,
+        questionNumber: q.question_number,
+        pdfName: 'Uploaded PDF', // TODO: Get actual PDF name
+        created_at: q.created_at,
+      }))
+      setQuestions(uiQuestions)
+      // Set folder name based on first question or default
+      if (uiQuestions.length > 0) {
+        setFolderName('Questions')
+      }
+    } catch (error) {
+      console.error('Failed to load questions:', error)
+      setFolderName('Folder')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadQuestions()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderId])
 
   // Format date nicely
   const formatDate = (dateString: string) => {
@@ -150,8 +136,13 @@ export default function FolderQuestionsPage() {
           </div>
         </div>
 
-        {/* Questions Grid */}
-        {questions.length > 0 ? (
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="text-center py-12 animate-fade-in">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
+            <p className="text-gray-600 text-lg">Loading questions...</p>
+          </div>
+        ) : questions.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             {questions.map((question, index) => (
               <Link

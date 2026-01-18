@@ -6,6 +6,7 @@ Supports both Google AI Studio (API key) and Vertex AI (service account).
 """
 
 import json
+import re
 from datetime import datetime
 from typing import Optional, Dict, Any
 from ..config import get_settings
@@ -49,6 +50,49 @@ class KnowledgeGraphGenerator:
 
         print("Knowledge Graph Generator: No API configured, generation disabled")
 
+    def _slugify(self, value: str) -> str:
+        slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+        return slug or "subject"
+
+    async def _save_graph(self, graph_doc: Dict[str, Any]) -> None:
+        collection = get_knowledge_graphs_collection()
+        await collection.replace_one(
+            {"_id": graph_doc["_id"]},
+            graph_doc,
+            upsert=True
+        )
+
+    def _build_fallback_graph(self, subject_name: str, subject_id: str, user_id: str) -> Dict[str, Any]:
+        concept_slug = self._slugify(subject_name)
+        concept_id = f"{concept_slug}_basics"
+        now = datetime.utcnow()
+        return {
+            "_id": f"graph_{subject_id}",
+            "subject_id": subject_id,
+            "created_by": user_id,
+            "created_at": now,
+            "updated_at": now,
+            "name": subject_name,
+            "description": f"Introductory learning path for {subject_name}",
+            "nodes": {
+                concept_id: {
+                    "concept_id": concept_id,
+                    "name": f"Foundations of {subject_name}",
+                    "description": f"Core ideas and vocabulary for {subject_name}",
+                    "parents": [],
+                    "children": [],
+                    "default_params": {
+                        "P_L0": 0.10,
+                        "P_T": 0.10,
+                        "P_G": 0.25,
+                        "P_S": 0.10
+                    },
+                    "depth": 0
+                }
+            },
+            "root_concepts": [concept_id]
+        }
+
     async def generate_graph(self, subject_name: str, subject_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """
         Generate a knowledge graph for a subject using Gemini.
@@ -62,8 +106,10 @@ class KnowledgeGraphGenerator:
             The created knowledge graph document, or None if generation failed
         """
         if not self.gemini_model:
-            print(f"Skipping graph generation for '{subject_name}' - Gemini not configured")
-            return None
+            print(f"Gemini not configured. Creating fallback graph for '{subject_name}'.")
+            fallback_graph = self._build_fallback_graph(subject_name, subject_id, user_id)
+            await self._save_graph(fallback_graph)
+            return fallback_graph
 
         prompt = f'''You are an expert curriculum designer. Generate a knowledge graph for the subject: "{subject_name}"
 
@@ -164,17 +210,14 @@ Rules:
                 "created_by": user_id,
                 "created_at": now,
                 "updated_at": now,
+                "name": subject_name,
+                "description": f"Auto-generated learning path for {subject_name}",
                 "nodes": nodes,
                 "root_concepts": root_concepts
             }
 
             # Save to MongoDB
-            collection = get_knowledge_graphs_collection()
-            await collection.replace_one(
-                {"_id": graph_doc["_id"]},
-                graph_doc,
-                upsert=True
-            )
+            await self._save_graph(graph_doc)
 
             # Log the generated concepts
             print(f"\n{'='*60}")
@@ -193,10 +236,14 @@ Rules:
 
         except json.JSONDecodeError as e:
             print(f"Failed to parse Gemini response for '{subject_name}': {e}")
-            return None
+            fallback_graph = self._build_fallback_graph(subject_name, subject_id, user_id)
+            await self._save_graph(fallback_graph)
+            return fallback_graph
         except Exception as e:
             print(f"Error generating graph for '{subject_name}': {e}")
-            return None
+            fallback_graph = self._build_fallback_graph(subject_name, subject_id, user_id)
+            await self._save_graph(fallback_graph)
+            return fallback_graph
 
     async def get_graph_for_subject(self, subject_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a knowledge graph by subject ID."""

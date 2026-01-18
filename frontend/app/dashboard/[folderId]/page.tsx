@@ -140,7 +140,7 @@ export default function FolderQuestionsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             {questions.map((question, index) => (
               <Link
-                key={question.id}
+                key={question.id ?? `${folderId}-${index}`}
                 href={`/dashboard/${folderId}/question/${question.id}`}
                 className="bg-white rounded-xl p-6 transition-all duration-300 border border-gray-200 cursor-pointer hover:-translate-y-1 group"
                 style={{

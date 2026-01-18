@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { getKnowledgeGraph, getUserMastery, type KnowledgeGraph, type ConceptMastery } from '@/lib/api'
@@ -27,6 +27,9 @@ export default function ProgressPage() {
   const [masteryData, setMasteryData] = useState<ConceptMastery[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [connections, setConnections] = useState<Array<{ x1: number; y1: number; x2: number; y2: number }>>([])
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const folderName = FOLDER_NAMES[folderId] || 'Unknown Subject'
 
@@ -46,13 +49,15 @@ export default function ProgressPage() {
           setMasteryData(mastery.concepts)
         } catch (err) {
           // No mastery data yet - show all locked except root concepts
-          const initialMastery: ConceptMastery[] = graph.nodes.map(node => ({
-            concept_id: node.id,
-            P_L: node.bkt_params.P_L0,
-            is_unlocked: graph.root_concepts.includes(node.id),
-            is_mastered: false,
-          }))
-          setMasteryData(initialMastery)
+          if (graph.nodes && Array.isArray(graph.nodes)) {
+            const initialMastery: ConceptMastery[] = graph.nodes.map(node => ({
+              concept_id: node.id,
+              P_L: node.bkt_params.P_L0,
+              is_unlocked: graph.root_concepts.includes(node.id),
+              is_mastered: false,
+            }))
+            setMasteryData(initialMastery)
+          }
         }
       } catch (err) {
         console.error('Error loading progress data:', err)
@@ -69,36 +74,48 @@ export default function ProgressPage() {
     return masteryData.find(m => m.concept_id === conceptId)
   }
 
+  const getNodeId = (node: { id?: string; concept_id?: string }) => {
+    return node.id ?? node.concept_id ?? ''
+  }
+
+  const getNodePrereqs = (node: { prerequisites?: string[]; parents?: string[] }) => {
+    return node.prerequisites ?? node.parents ?? []
+  }
+
   const getConceptColor = (mastery?: ConceptMastery) => {
     if (!mastery || !mastery.is_unlocked) {
       return {
-        bg: 'from-gray-300 to-gray-400',
-        border: 'border-gray-500',
+        bg: 'from-gray-50 to-gray-100',
+        border: 'border-gray-200',
         text: 'text-gray-700',
-        progress: 'bg-gray-400'
+        progress: 'bg-gray-400',
+        badge: 'bg-gray-100 text-gray-600'
       }
     }
     if (mastery.is_mastered || mastery.P_L >= 0.90) {
       return {
-        bg: 'from-green-400 to-green-500',
-        border: 'border-green-600',
-        text: 'text-green-900',
-        progress: 'bg-green-600'
+        bg: 'from-green-50 to-green-100',
+        border: 'border-green-200',
+        text: 'text-green-800',
+        progress: 'bg-green-500',
+        badge: 'bg-green-100 text-green-700'
       }
     }
     if (mastery.P_L >= 0.40) {
       return {
-        bg: 'from-yellow-300 to-yellow-400',
-        border: 'border-yellow-600',
-        text: 'text-yellow-900',
-        progress: 'bg-yellow-600'
+        bg: 'from-yellow-50 to-yellow-100',
+        border: 'border-yellow-200',
+        text: 'text-yellow-800',
+        progress: 'bg-yellow-500',
+        badge: 'bg-yellow-100 text-yellow-700'
       }
     }
     return {
-      bg: 'from-red-300 to-red-400',
-      border: 'border-red-600',
-      text: 'text-red-900',
-      progress: 'bg-red-600'
+      bg: 'from-blue-50 to-blue-100',
+      border: 'border-blue-200',
+      text: 'text-blue-800',
+      progress: 'bg-blue-500',
+      badge: 'bg-blue-100 text-blue-700'
     }
   }
 
@@ -108,6 +125,70 @@ export default function ProgressPage() {
     if (mastery.P_L >= 0.40) return 'Learning'
     return 'Unlocked'
   }
+
+  useLayoutEffect(() => {
+    if (!knowledgeGraph || !Array.isArray(knowledgeGraph.nodes)) {
+      setConnections([])
+      return
+    }
+
+    let frameId: number | null = null
+
+    const updateConnections = () => {
+      const container = containerRef.current
+      if (!container) return
+
+      const containerRect = container.getBoundingClientRect()
+      const nextConnections: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
+
+      knowledgeGraph.nodes.forEach(node => {
+        const nodeId = getNodeId(node)
+        if (!nodeId) return
+        const childEl = nodeRefs.current[nodeId]
+        if (!childEl) return
+
+        const childRect = childEl.getBoundingClientRect()
+        const x2 = childRect.left + childRect.width / 2 - containerRect.left
+        const y2 = childRect.top - containerRect.top
+
+        const prerequisites = getNodePrereqs(node)
+        prerequisites.forEach(prereqId => {
+          const parentEl = nodeRefs.current[prereqId]
+          if (!parentEl) return
+
+          const parentRect = parentEl.getBoundingClientRect()
+          const x1 = parentRect.left + parentRect.width / 2 - containerRect.left
+          const y1 = parentRect.bottom - containerRect.top
+
+          nextConnections.push({ x1, y1, x2, y2 })
+        })
+      })
+
+      setConnections(nextConnections)
+    }
+
+    const scheduleUpdate = () => {
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId)
+      }
+      frameId = requestAnimationFrame(updateConnections)
+    }
+
+    scheduleUpdate()
+    window.addEventListener('resize', scheduleUpdate)
+    const resizeObserver = new ResizeObserver(scheduleUpdate)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => {
+      window.removeEventListener('resize', scheduleUpdate)
+      resizeObserver.disconnect()
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId)
+      }
+    }
+  }, [knowledgeGraph])
 
   if (loading) {
     return (
@@ -137,7 +218,9 @@ export default function ProgressPage() {
   }
 
   // Sort nodes by depth for top-to-bottom display
-  const sortedNodes = [...knowledgeGraph.nodes].sort((a, b) => a.depth - b.depth)
+  const sortedNodes = Array.isArray(knowledgeGraph.nodes)
+    ? [...knowledgeGraph.nodes].sort((a, b) => a.depth - b.depth)
+    : []
 
   // Group nodes by depth level
   const nodesByDepth: { [depth: number]: typeof sortedNodes } = {}
@@ -183,25 +266,25 @@ export default function ProgressPage() {
 
           {/* Progress Summary */}
           <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-              <p className="text-xs text-gray-500 font-semibold uppercase">Total Concepts</p>
-              <p className="text-2xl font-bold text-gray-900">{knowledgeGraph.nodes.length}</p>
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total Concepts</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{knowledgeGraph.nodes.length}</p>
             </div>
-            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-              <p className="text-xs text-gray-500 font-semibold uppercase">Unlocked</p>
-              <p className="text-2xl font-bold text-blue-600">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Unlocked</p>
+              <p className="text-2xl font-bold text-blue-600 mt-1">
                 {masteryData.filter(m => m.is_unlocked).length}
               </p>
             </div>
-            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-              <p className="text-xs text-gray-500 font-semibold uppercase">Learning</p>
-              <p className="text-2xl font-bold text-yellow-600">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Learning</p>
+              <p className="text-2xl font-bold text-yellow-600 mt-1">
                 {masteryData.filter(m => m.is_unlocked && m.P_L >= 0.40 && m.P_L < 0.90).length}
               </p>
             </div>
-            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-              <p className="text-xs text-gray-500 font-semibold uppercase">Mastered</p>
-              <p className="text-2xl font-bold text-green-600">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Mastered</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">
                 {masteryData.filter(m => m.is_mastered || m.P_L >= 0.90).length}
               </p>
             </div>
@@ -213,83 +296,107 @@ export default function ProgressPage() {
       <div className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Legend */}
-          <div className="mb-8 bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="mb-8 bg-white/80 backdrop-blur-sm rounded-xl p-5 border border-gray-200">
             <p className="text-sm font-semibold text-gray-700 mb-3">Progress Legend:</p>
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-gradient-to-br from-gray-300 to-gray-400 border-2 border-gray-500"></div>
+                <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200"></div>
                 <span className="text-sm text-gray-700">Locked</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-gradient-to-br from-red-300 to-red-400 border-2 border-red-600"></div>
-                <span className="text-sm text-gray-700">Unlocked (&lt;40%)</span>
+                <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200"></div>
+                <span className="text-sm text-gray-700">Starting (&lt;40%)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-gradient-to-br from-yellow-300 to-yellow-400 border-2 border-yellow-600"></div>
+                <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200"></div>
                 <span className="text-sm text-gray-700">Learning (40-90%)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-gradient-to-br from-green-400 to-green-500 border-2 border-green-600"></div>
+                <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-green-50 to-green-100 border border-green-200"></div>
                 <span className="text-sm text-gray-700">Mastered (≥90%)</span>
               </div>
             </div>
           </div>
 
           {/* Tree Visualization */}
-          <div className="space-y-8">
+          <div className="space-y-0 relative" ref={containerRef}>
+            {/* Connection lines (node-to-node) */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#9CA3AF" />
+                </marker>
+              </defs>
+              {connections.map((line, index) => (
+                <line
+                  key={`${line.x1}-${line.y1}-${line.x2}-${line.y2}-${index}`}
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
+                  stroke="#9CA3AF"
+                  strokeWidth="2.5"
+                  markerEnd="url(#arrowhead)"
+                />
+              ))}
+            </svg>
             {Object.keys(nodesByDepth).sort((a, b) => Number(a) - Number(b)).map((depthStr, levelIndex) => {
               const depth = Number(depthStr)
               const nodesAtDepth = nodesByDepth[depth]
 
               return (
-                <div key={depth}>
-                  {/* Connecting Lines (if not first level) */}
-                  {levelIndex > 0 && (
-                    <div className="flex justify-center mb-4">
-                      <div className="w-0.5 h-8 bg-gray-300"></div>
-                    </div>
-                  )}
-
+                <div key={depth} className={levelIndex === Object.keys(nodesByDepth).length - 1 ? '' : 'mb-20'}>
                   {/* Nodes at this depth */}
-                  <div className="grid gap-6" style={{
-                    gridTemplateColumns: `repeat(${nodesAtDepth.length}, minmax(0, 1fr))`
+                  <div className="grid gap-8 relative" style={{
+                    gridTemplateColumns: `repeat(${nodesAtDepth.length}, minmax(0, 1fr))`,
+                    zIndex: 1
                   }}>
                     {nodesAtDepth.map((node) => {
-                      const mastery = getMasteryForConcept(node.id)
+                      const nodeId = getNodeId(node)
+                      const mastery = nodeId ? getMasteryForConcept(nodeId) : undefined
                       const colors = getConceptColor(mastery)
                       const label = getMasteryLabel(mastery)
                       const percentage = mastery ? Math.round(mastery.P_L * 100) : 0
 
                       return (
                         <div
-                          key={node.id}
-                          className="relative flex flex-col items-center animate-fade-in"
+                          key={nodeId}
+                          className="relative flex flex-col items-center animate-fade-in group"
+                          ref={(el) => {
+                            if (nodeId) {
+                              nodeRefs.current[nodeId] = el
+                            }
+                          }}
                         >
+                          {/* Hover tooltip */}
+                          {node.description && (
+                            <div
+                              className="pointer-events-none absolute -top-2 left-1/2 z-20 w-64 -translate-x-1/2 -translate-y-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+                              role="tooltip"
+                            >
+                              {node.description}
+                            </div>
+                          )}
                           {/* Concept Card */}
-                          <div className={`w-full max-w-xs bg-gradient-to-br ${colors.bg} border-2 ${colors.border} rounded-xl p-5 shadow-lg transition-all duration-300 hover:scale-105`}>
+                          <div className={`w-full max-w-xs bg-gradient-to-br ${colors.bg} border ${colors.border} rounded-xl p-6 transition-all duration-300 hover:scale-105`}>
                             {/* Node Header */}
                             <div className="flex items-start justify-between mb-3">
                               <h3 className={`font-bold text-lg ${colors.text} leading-tight`}>
-                                {node.name}
+                              {node.name}
                               </h3>
-                              <span className={`text-xs font-bold px-2 py-1 rounded ${colors.text} bg-white/50`}>
+                              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${colors.badge}`}>
                                 {label}
                               </span>
                             </div>
-
-                            {/* Description */}
-                            <p className="text-sm text-gray-800 mb-4">
-                              {node.description}
-                            </p>
 
                             {/* Progress Bar */}
                             {mastery && mastery.is_unlocked && (
                               <div className="space-y-2">
                                 <div className="flex justify-between items-center">
-                                  <span className="text-xs font-semibold text-gray-700">Mastery</span>
-                                  <span className="text-xs font-bold text-gray-900">{percentage}%</span>
+                                  <span className="text-xs font-semibold text-gray-600">Mastery</span>
+                                  <span className="text-xs font-bold text-gray-800">{percentage}%</span>
                                 </div>
-                                <div className="w-full bg-white/70 rounded-full h-3 overflow-hidden border border-gray-400">
+                                <div className="w-full bg-white/70 rounded-full h-3 overflow-hidden border border-gray-200">
                                   <div
                                     className={`h-full ${colors.progress} transition-all duration-500 rounded-full`}
                                     style={{ width: `${percentage}%` }}
@@ -309,10 +416,10 @@ export default function ProgressPage() {
                           </div>
 
                           {/* Prerequisites Info */}
-                          {node.prerequisites.length > 0 && (
+                          {getNodePrereqs(node).length > 0 && (
                             <p className="text-xs text-gray-500 mt-2 text-center">
-                              Requires: {node.prerequisites.map(prereqId => {
-                                const prereqNode = knowledgeGraph.nodes.find(n => n.id === prereqId)
+                              Requires: {getNodePrereqs(node).map(prereqId => {
+                                const prereqNode = knowledgeGraph.nodes.find(n => getNodeId(n) === prereqId)
                                 return prereqNode?.name || prereqId
                               }).join(', ')}
                             </p>

@@ -165,8 +165,28 @@ export default function CanvasPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
+    <div 
+      className="min-h-screen p-8 relative"
+      style={{
+        backgroundImage: `linear-gradient(rgba(200,200,200,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(200,200,200,0.1) 1px, transparent 1px)`,
+        backgroundSize: '20px 20px',
+        backgroundColor: '#fafafa',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      {/* Grain overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.3'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'repeat',
+          opacity: 0.9,
+          mixBlendMode: 'multiply'
+        }}
+      />
+      <div className="max-w-4xl mx-auto relative z-10">
         {/* Problem Card */}
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6">
           <ProblemInput value={problemText} onChange={setProblemText} />

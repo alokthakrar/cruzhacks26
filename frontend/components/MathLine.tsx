@@ -18,6 +18,12 @@ interface ValidationResult {
     warning?: string | null;
 }
 
+interface VisualFeedback {
+    bounding_box: number[] | null; // [ymin, xmin, ymax, xmax] 0-1000
+    visual_feedback: string | null;
+    correct_answer: string | null;
+}
+
 interface MathLineProps {
     lineNumber: number;
     strokeColor: string;
@@ -26,8 +32,9 @@ interface MathLineProps {
     onTextChange?: (lineNumber: number, text: string) => void;
     validationResult?: ValidationResult | null;
     onClearValidation?: (lineNumber: number) => void;
-    onOcrStatusChange?: (lineNumber: number, isProcessing: boolean) => void;
-    onWritingStatusChange?: (lineNumber: number, isWriting: boolean) => void;
+    showVisualFeedback?: boolean;
+    problemContext?: string;
+    previousStep?: string;
 }
 
 export default function MathLine({
@@ -38,14 +45,21 @@ export default function MathLine({
     onTextChange,
     validationResult,
     onClearValidation,
-    onOcrStatusChange,
-    onWritingStatusChange,
+    showVisualFeedback = true,
+    problemContext,
+    previousStep,
 }: MathLineProps) {
     const canvasRef = useRef<ReactSketchCanvasRef>(null);
     const [latex, setLatex] = useState<string>("");
     const [isEditing, setIsEditing] = useState(false);
     const { performOCR, error } = useOCR();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const [visualFeedback, setVisualFeedback] = useState<VisualFeedback | null>(null);
+    const [showHint, setShowHint] = useState(false);
+    const [canvasHeight, setCanvasHeight] = useState(96); // h-24 = 96px
+    const [isResizing, setIsResizing] = useState(false);
+    const resizeStartY = useRef(0);
+    const resizeStartHeight = useRef(0);
 
     // Notify parent when text changes
     useEffect(() => {
@@ -56,23 +70,27 @@ export default function MathLine({
         if (!canvasRef.current) return;
 
         try {
-            onOcrStatusChange?.(lineNumber, true);
             const dataUrl = await canvasRef.current.exportImage("png");
             const response = await fetch(dataUrl);
             const blob = await response.blob();
 
-            const result = await performOCR(blob);
-            setLatex(result);
+            const result = await performOCR(blob, problemContext, previousStep);
+            if (result) {
+                setLatex(result.latex);
+                // Set visual feedback if Gemini detected an error
+                console.log('📍 Visual Feedback Data:', result.visualFeedback);
+                setVisualFeedback(result.visualFeedback);
+                // Check if user is requesting a hint
+                setShowHint(result.latex.toLowerCase().includes("hint"));
+            }
         } catch (err) {
             console.error("OCR check failed:", err);
-        } finally {
-            onOcrStatusChange?.(lineNumber, false);
         }
     };
 
     const handleStroke = () => {
-        // Mark as writing in progress
-        onWritingStatusChange?.(lineNumber, true);
+        // Clear visual feedback while writing
+        setVisualFeedback(null);
 
         // Clear existing timer
         if (debounceTimerRef.current) {
@@ -90,15 +108,13 @@ export default function MathLine({
     const handleClear = () => {
         canvasRef.current?.clearCanvas();
         setLatex("");
+        setVisualFeedback(null);
+        setShowHint(false);
 
         // Clear debounce timer
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
         }
-
-        // Clear writing and OCR status
-        onWritingStatusChange?.(lineNumber, false);
-        onOcrStatusChange?.(lineNumber, false);
 
         // Clear validation result
         onClearValidation?.(lineNumber);
@@ -112,6 +128,35 @@ export default function MathLine({
             }
         };
     }, []);
+
+    // Handle resize drag
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (isResizing) {
+                const deltaY = e.clientY - resizeStartY.current;
+                const newHeight = Math.max(60, Math.min(500, resizeStartHeight.current + deltaY));
+                setCanvasHeight(newHeight);
+            }
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(false);
+        };
+
+        if (isResizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'ns-resize';
+            document.body.style.userSelect = 'none';
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+    }, [isResizing]);
 
     // Determine border color based on validation
     const getBorderColor = () => {
@@ -135,6 +180,7 @@ export default function MathLine({
     };
 
     return (
+        <>
         <div className={`relative flex border-b border-gray-200 hover:bg-gray-50 transition-colors ${getBgColor()}`}>
             {/* Left border indicator */}
             <div className={`w-1 border-l-4 ${getBorderColor()}`}></div>
@@ -145,7 +191,7 @@ export default function MathLine({
             </div>
 
             {/* Canvas area */}
-            <div className="flex-1 relative h-24 bg-white">
+            <div className="flex-1 relative bg-white" style={{ height: `${canvasHeight}px` }}>
                 <ReactSketchCanvas
                     ref={canvasRef}
                     width="100%"
@@ -157,8 +203,37 @@ export default function MathLine({
                     style={{ position: "absolute", inset: 0 }}
                 />
 
+                {/* Visual Feedback Overlay */}
+                {showVisualFeedback && visualFeedback?.bounding_box && (
+                    <>
+                        <div
+                            className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none z-10 transition-all duration-500"
+                            style={{
+                                top: `${visualFeedback.bounding_box[0] / 10}%`,
+                                left: `${visualFeedback.bounding_box[1] / 10}%`,
+                                height: `${(visualFeedback.bounding_box[2] - visualFeedback.bounding_box[0]) / 10}%`,
+                                width: `${(visualFeedback.bounding_box[3] - visualFeedback.bounding_box[1]) / 10}%`,
+                            }}
+                        />
+                        {/* Feedback Bubble - Hint Only */}
+                        {visualFeedback.visual_feedback && (
+                            <div 
+                                className="absolute z-20 bg-yellow-500 text-gray-900 text-xs px-3 py-2 rounded-lg shadow-xl pointer-events-none font-semibold"
+                                style={{
+                                    top: `${(visualFeedback.bounding_box[0] / 10) - 10 < 0 ? (visualFeedback.bounding_box[2] / 10) + 2 : (visualFeedback.bounding_box[0] / 10) - 8}%`,
+                                    left: `${visualFeedback.bounding_box[1] / 10}%`,
+                                    maxWidth: "220px"
+                                }}
+                            >
+                                💡 {visualFeedback.visual_feedback}
+                            </div>
+                        )}
+                    </>
+                )}
+
+
                 {/* OCR Result Display - click to edit */}
-                {latex && !isEditing && (
+                {showVisualFeedback && latex && !isEditing && (
                     <span
                         onClick={() => setIsEditing(true)}
                         className="absolute top-2 right-2 text-sm font-mono text-gray-800 cursor-default max-w-[60%] truncate"
@@ -197,12 +272,15 @@ export default function MathLine({
                     </div>
                 )}
 
-                {validationResult && validationResult.is_valid && validationResult.warning && (
+                {/* Show hint lightbulb when user writes "hint" or when there's a warning */}
+                {((showHint && validationResult) || (validationResult && validationResult.is_valid && validationResult.warning)) && (
                     <div className="absolute top-2 left-2 group z-10">
                         <Lightbulb className="w-6 h-6 text-yellow-500 cursor-help animate-pulse drop-shadow-lg" />
                         <div className="hidden group-hover:block absolute top-full left-0 mt-1 bg-yellow-50 border-2 border-yellow-300 px-4 py-3 shadow-xl min-w-[250px] max-w-sm whitespace-normal z-20">
                             <div className="text-sm font-semibold text-yellow-700 mb-1">Hint</div>
-                            <div className="text-sm text-yellow-700">{validationResult.warning}</div>
+                            <div className="text-sm text-yellow-700">
+                                {validationResult.warning || validationResult.explanation || "Try working through the next step carefully. Consider what operation would help you isolate the variable."}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -228,5 +306,22 @@ export default function MathLine({
                 </button>
             </div>
         </div>
+        
+        {/* Resize Handle */}
+        <div
+            className={`h-2 bg-gray-100 hover:bg-blue-200 cursor-ns-resize transition-colors flex items-center justify-center group ${
+                isResizing ? 'bg-blue-300' : ''
+            }`}
+            onMouseDown={(e) => {
+                setIsResizing(true);
+                resizeStartY.current = e.clientY;
+                resizeStartHeight.current = canvasHeight;
+                e.preventDefault();
+            }}
+            title="Drag to resize"
+        >
+            <div className="w-12 h-1 bg-gray-400 rounded-full group-hover:bg-blue-500 transition-colors"></div>
+        </div>
+        </>
     );
 }

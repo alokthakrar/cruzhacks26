@@ -456,7 +456,7 @@ export default function DashboardPage() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
               <div className="flex-1">
                 <h3 className="text-2xl font-bold text-gray-900 mb-3 md:mb-4">
-                  Choose a workspace to begin
+                  Choose a folder to begin
                 </h3>
                 <select
                   value={selectedFolder}

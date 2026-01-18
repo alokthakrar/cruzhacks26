@@ -73,7 +73,7 @@ export default function MathLine({
     const handleStroke = () => {
         // Mark as writing in progress
         onWritingStatusChange?.(lineNumber, true);
-        
+
         // Clear existing timer
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
@@ -95,6 +95,10 @@ export default function MathLine({
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
         }
+
+        // Clear writing and OCR status
+        onWritingStatusChange?.(lineNumber, false);
+        onOcrStatusChange?.(lineNumber, false);
 
         // Clear validation result
         onClearValidation?.(lineNumber);
@@ -212,7 +216,7 @@ export default function MathLine({
             </div>
 
             {/* Clear button */}
-            <div className="w-16 flex-shrink-0 flex items-center justify-center border-l border-gray-200">
+            <div className="w-16 flex-shrink-0 flex items-center justify-center border-l border-gray-200 bg-white">
                 <button
                     onClick={handleClear}
                     className="w-full h-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-red-500 transition-colors"

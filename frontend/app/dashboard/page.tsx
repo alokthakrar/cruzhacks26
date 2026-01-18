@@ -101,11 +101,26 @@ export default function DashboardPage() {
     try {
       const subjects = await getSubjects();
       // Convert subjects to folders with colors and PDF count
-      const foldersWithMeta = subjects.map((s) => ({
-        ...s,
-        pdfCount: 0, // TODO: Get actual count from backend
-        color: getRandomColor(),
-      }));
+      const foldersWithMeta = await Promise.all(
+        subjects.map(async (s) => {
+          // Fetch question count for each subject
+          try {
+            const questionsResponse = await getSubjectQuestions(s.id, 1, 1);
+            return {
+              ...s,
+              pdfCount: questionsResponse.total,
+              color: getRandomColor(),
+            };
+          } catch (error) {
+            console.error(`Failed to load question count for ${s.name}:`, error);
+            return {
+              ...s,
+              pdfCount: 0,
+              color: getRandomColor(),
+            };
+          }
+        })
+      );
       setFolders(foldersWithMeta);
     } catch (error) {
       console.error("Failed to load subjects:", error);
@@ -697,7 +712,7 @@ export default function DashboardPage() {
                       </div>
                     </Link>
 
-                    {/* View Graph Button */}
+                    {/* View Progress Button */}
                     <div className="px-5 pb-4 border-t border-gray-100">
                       <Link
                         href={`/dashboard/${folder.id}/progress`}
@@ -707,7 +722,7 @@ export default function DashboardPage() {
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                           </svg>
-                          View Graph
+                          View Progress
                         </span>
                       </Link>
                     </div>

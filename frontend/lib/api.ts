@@ -50,6 +50,7 @@ export type QuestionsListResponse = {
 export type Subject = {
   id: string
   name: string
+  color: string
   user_id: string
   created_at: string
   last_accessed: string
@@ -57,10 +58,12 @@ export type Subject = {
 
 export type SubjectCreate = {
   name: string
+  color?: string
 }
 
 export type SubjectUpdate = {
   name?: string
+  color?: string
 }
 
 // Fake data for testing

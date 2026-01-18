@@ -24,6 +24,9 @@ async def list_subjects(user_id: str = Depends(get_current_user_id)):
         s['id'] = s.pop('_id')  # Rename _id to id
         s['created_at'] = s['created_at'].isoformat()
         s['last_accessed'] = s['last_accessed'].isoformat()
+        # Default color for backwards compatibility with existing subjects
+        if 'color' not in s:
+            s['color'] = 'Blue'
         result.append(s)
     return result
 
@@ -41,6 +44,7 @@ async def create_subject(
         "_id": str(ObjectId()),
         "user_id": user_id,
         "name": subject_data.name,
+        "color": subject_data.color,
         "created_at": now,
         "last_accessed": now,
     }
@@ -65,6 +69,7 @@ async def create_subject(
         "id": subject_doc["_id"],
         "user_id": subject_doc["user_id"],
         "name": subject_doc["name"],
+        "color": subject_doc["color"],
         "created_at": subject_doc["created_at"].isoformat(),
         "last_accessed": subject_doc["last_accessed"].isoformat(),
         "knowledge_graph_created": graph is not None,

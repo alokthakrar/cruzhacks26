@@ -109,14 +109,14 @@ export default function DashboardPage() {
             return {
               ...s,
               pdfCount: questionsResponse.total,
-              color: getRandomColor(),
+              color: s.color || "Blue", // Use saved color from API
             };
           } catch (error) {
             console.error(`Failed to load question count for ${s.name}:`, error);
             return {
               ...s,
               pdfCount: 0,
-              color: getRandomColor(),
+              color: s.color || "Blue", // Use saved color from API
             };
           }
         })
@@ -135,11 +135,11 @@ export default function DashboardPage() {
     if (!newFolderName.trim()) return;
 
     try {
-      const newSubject = await createSubject({ name: newFolderName });
+      const newSubject = await createSubject({ name: newFolderName, color: selectedColor });
       const newFolder: Folder = {
         ...newSubject,
         pdfCount: 0,
-        color: selectedColor,
+        color: newSubject.color || selectedColor,
       };
       setFolders([newFolder, ...folders]);
       setNewFolderName("");

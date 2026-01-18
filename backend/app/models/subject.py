@@ -9,6 +9,7 @@ class Subject(BaseModel):
     id: str = Field(alias="_id")
     user_id: str
     name: str
+    color: str = "Blue"  # Folder accent color
     created_at: datetime
     last_accessed: datetime
 
@@ -21,9 +22,11 @@ class SubjectCreate(BaseModel):
     """Request body for creating a subject."""
 
     name: str
+    color: str = "Blue"
 
 
 class SubjectUpdate(BaseModel):
     """Request body for updating a subject."""
 
     name: Optional[str] = None
+    color: Optional[str] = None

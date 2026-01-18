@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import {
   getSubjectQuestions,
+  getSubjects,
   Question,
   initializeBKT,
   getMasteryState,
@@ -22,17 +23,18 @@ type UIQuestion = {
   created_at: string
 }
 
-const FOLDER_COLORS = [
-  { bg: 'from-blue-50 to-blue-100', icon: 'text-blue-500' },
-  { bg: 'from-purple-50 to-purple-100', icon: 'text-purple-500' },
-  { bg: 'from-green-50 to-green-100', icon: 'text-green-500' },
-  { bg: 'from-orange-50 to-orange-100', icon: 'text-orange-500' },
-  { bg: 'from-pink-50 to-pink-100', icon: 'text-pink-500' },
-  { bg: 'from-indigo-50 to-indigo-100', icon: 'text-indigo-500' },
-]
+// Map color names to Tailwind classes
+const FOLDER_COLOR_MAP: Record<string, { bg: string; icon: string; badge: string; badgeHover: string }> = {
+  Blue: { bg: 'from-blue-50 to-blue-100', icon: 'text-blue-500', badge: 'from-blue-500 to-blue-600', badgeHover: 'text-blue-500' },
+  Purple: { bg: 'from-purple-50 to-purple-100', icon: 'text-purple-500', badge: 'from-purple-500 to-purple-600', badgeHover: 'text-purple-500' },
+  Green: { bg: 'from-green-50 to-green-100', icon: 'text-green-500', badge: 'from-green-500 to-green-600', badgeHover: 'text-green-500' },
+  Orange: { bg: 'from-orange-50 to-orange-100', icon: 'text-orange-500', badge: 'from-orange-500 to-orange-600', badgeHover: 'text-orange-500' },
+  Pink: { bg: 'from-pink-50 to-pink-100', icon: 'text-pink-500', badge: 'from-pink-500 to-pink-600', badgeHover: 'text-pink-500' },
+  Indigo: { bg: 'from-indigo-50 to-indigo-100', icon: 'text-indigo-500', badge: 'from-indigo-500 to-indigo-600', badgeHover: 'text-indigo-500' },
+}
 
-const getRandomFolderColor = () => {
-  return FOLDER_COLORS[Math.floor(Math.random() * FOLDER_COLORS.length)]
+const getColorClasses = (colorName: string) => {
+  return FOLDER_COLOR_MAP[colorName] || FOLDER_COLOR_MAP['Blue']
 }
 
 // Temporary user ID until auth is implemented
@@ -46,13 +48,27 @@ export default function FolderQuestionsPage() {
   const [questions, setQuestions] = useState<UIQuestion[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [folderName, setFolderName] = useState('Loading...')
-  const [folderColor] = useState(getRandomFolderColor())
+  const [folderColor, setFolderColor] = useState('Blue')
 
   // BKT state
   const [masteryState, setMasteryState] = useState<MasteryState | null>(null)
   const [progress, setProgress] = useState<ProgressSummary | null>(null)
   const [isInitializing, setIsInitializing] = useState(false)
   const [bktError, setBktError] = useState<string | null>(null)
+
+  // Load folder info (name and color) from API
+  const loadFolderInfo = async () => {
+    try {
+      const subjects = await getSubjects()
+      const folder = subjects.find(s => s.id === folderId)
+      if (folder) {
+        setFolderName(folder.name)
+        setFolderColor(folder.color || 'Blue')
+      }
+    } catch (error) {
+      console.error('Failed to load folder info:', error)
+    }
+  }
 
   // Load questions from API
   const loadQuestions = async () => {
@@ -68,13 +84,8 @@ export default function FolderQuestionsPage() {
         created_at: q.created_at,
       }))
       setQuestions(uiQuestions)
-      // Set folder name based on first question or default
-      if (uiQuestions.length > 0) {
-        setFolderName('Questions')
-      }
     } catch (error) {
       console.error('Failed to load questions:', error)
-      setFolderName('Folder')
     } finally {
       setIsLoading(false)
     }
@@ -98,6 +109,15 @@ export default function FolderQuestionsPage() {
     }
   }
 
+  // Navigate to a random question
+  const navigateToRandomQuestion = () => {
+    if (questions.length > 0) {
+      const randomIndex = Math.floor(Math.random() * questions.length)
+      const randomQuestion = questions[randomIndex]
+      router.push(`/dashboard/${folderId}/question/${randomQuestion.id}`)
+    }
+  }
+
   // Initialize BKT for this subject
   const handleStartLearning = async () => {
     setIsInitializing(true)
@@ -105,8 +125,8 @@ export default function FolderQuestionsPage() {
     try {
       await initializeBKT(TEMP_USER_ID, folderId)
       await loadMasteryState()
-      // Navigate to study mode
-      router.push(`/dashboard/${folderId}/study`)
+      // Navigate to a random question
+      navigateToRandomQuestion()
     } catch (error) {
       console.error('Failed to initialize BKT:', error)
       setBktError(error instanceof Error ? error.message : 'Failed to start learning')
@@ -115,12 +135,13 @@ export default function FolderQuestionsPage() {
     }
   }
 
-  // Continue learning (already initialized)
+  // Continue learning (already initialized) - go to random question
   const handleContinueLearning = () => {
-    router.push(`/dashboard/${folderId}/study`)
+    navigateToRandomQuestion()
   }
 
   useEffect(() => {
+    loadFolderInfo()
     loadQuestions()
     loadMasteryState()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,9 +173,9 @@ export default function FolderQuestionsPage() {
             Back to Dashboard
           </Link>
           <div className="flex items-center gap-3 animate-fade-in">
-            <div className={`p-3 rounded-xl bg-gradient-to-br ${folderColor.bg}`}>
+            <div className={`p-3 rounded-xl bg-gradient-to-br ${getColorClasses(folderColor).bg}`}>
               <svg
-                className={`w-12 h-12 ${folderColor.icon}`}
+                className={`w-12 h-12 ${getColorClasses(folderColor).icon}`}
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -294,10 +315,10 @@ export default function FolderQuestionsPage() {
                 >
                   {/* Question Number Badge */}
                   <div className="flex items-start justify-between mb-4">
-                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg px-4 py-2 font-bold text-sm">
+                    <div className={`bg-gradient-to-br ${getColorClasses(folderColor).badge} text-white rounded-lg px-4 py-2 font-bold text-sm`}>
                       Question {question.questionNumber}
                     </div>
-                    <div className="text-gray-400 group-hover:text-blue-500 transition-colors duration-200">
+                    <div className={`${getColorClasses(folderColor).icon} opacity-50 group-hover:opacity-100 transition-opacity duration-200`}>
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
@@ -316,9 +337,9 @@ export default function FolderQuestionsPage() {
                     <span className="text-xs md:text-sm text-gray-500">
                       {question.pdfName}
                     </span>
-                    <button className="text-blue-600 hover:text-blue-700 font-semibold text-sm md:text-base transition-colors duration-200">
+                    <span className={`${getColorClasses(folderColor).icon} font-semibold text-sm md:text-base`}>
                       Start Working →
-                    </button>
+                    </span>
                   </div>
                 </Link>
               ))}

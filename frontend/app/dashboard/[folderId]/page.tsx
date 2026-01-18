@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { initializeMastery } from '@/lib/api'
 
 // Type definitions
 type Question = {
@@ -80,6 +81,23 @@ export default function FolderQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>(FAKE_QUESTIONS[folderId] || [])
   const folderName = FOLDER_NAMES[folderId] || 'Unknown Folder'
   const folderColor = FOLDER_COLORS[folderId] || FOLDER_COLORS['1']
+
+  // Initialize BKT mastery for this folder/subject when user opens it
+  useEffect(() => {
+    async function initializeBKT() {
+      try {
+        // Only initialize for folders that have knowledge graphs
+        // For now, we'll try to initialize for all folders (will silently fail if no graph exists)
+        await initializeMastery('dev_user_123', folderId)
+        console.log(`BKT mastery initialized for ${folderName}`)
+      } catch (error) {
+        // Silently fail - this is expected if there's no knowledge graph for this subject yet
+        console.log(`No knowledge graph for ${folderName} - BKT not initialized`)
+      }
+    }
+
+    initializeBKT()
+  }, [folderId, folderName])
 
   // Format date nicely
   const formatDate = (dateString: string) => {

@@ -268,3 +268,121 @@ export async function getQuestion(
 
   return await response.json()
 }
+
+// ========================================
+// BKT / Adaptive Learning Types & Functions
+// ========================================
+
+export type KnowledgeNode = {
+  id: string
+  name: string
+  description: string
+  prerequisites: string[]
+  depth: number
+  bkt_params: {
+    P_L0: number
+    P_T: number
+    P_G: number
+    P_S: number
+  }
+}
+
+export type KnowledgeGraph = {
+  subject_id: string
+  name: string
+  description: string
+  nodes: KnowledgeNode[]
+  root_concepts: string[]
+  created_at: string
+}
+
+export type ConceptMastery = {
+  concept_id: string
+  P_L: number  // Current mastery probability (0-1)
+  is_unlocked: boolean
+  is_mastered: boolean
+}
+
+export type UserMastery = {
+  user_id: string
+  subject_id: string
+  elo_rating: number
+  concepts: ConceptMastery[]
+  unlocked_concepts: string[]
+  mastered_concepts: string[]
+  total_questions_answered: number
+  created_at: string
+  updated_at: string
+}
+
+export type ProgressSummary = {
+  elo_rating: number
+  mastery_percentage: number
+  concepts_unlocked: number
+  concepts_mastered: number
+  total_concepts: number
+  total_questions_answered: number
+  current_focus_concept: string | null
+}
+
+/**
+ * Initialize BKT mastery tracking for a user in a subject
+ */
+export async function initializeMastery(userId: string, subjectId: string): Promise<UserMastery> {
+  const response = await fetch(`${API_BASE_URL}/bkt/initialize`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ user_id: userId, subject_id: subjectId }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to initialize mastery')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get user's mastery state for a subject
+ */
+export async function getUserMastery(userId: string, subjectId: string): Promise<UserMastery> {
+  const response = await fetch(`${API_BASE_URL}/bkt/mastery/${userId}/${subjectId}`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch mastery')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get progress summary for a subject
+ */
+export async function getProgressSummary(userId: string, subjectId: string): Promise<ProgressSummary> {
+  const response = await fetch(`${API_BASE_URL}/bkt/progress/${userId}/${subjectId}`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch progress')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get knowledge graph for a subject
+ */
+export async function getKnowledgeGraph(subjectId: string): Promise<KnowledgeGraph> {
+  const response = await fetch(`${API_BASE_URL}/bkt/graph/${subjectId}`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch knowledge graph')
+  }
+
+  return await response.json()
+}

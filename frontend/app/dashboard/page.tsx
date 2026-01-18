@@ -112,14 +112,17 @@ export default function DashboardPage() {
               color: s.color || "Blue", // Use saved color from API
             };
           } catch (error) {
-            console.error(`Failed to load question count for ${s.name}:`, error);
+            console.error(
+              `Failed to load question count for ${s.name}:`,
+              error,
+            );
             return {
               ...s,
               pdfCount: 0,
               color: s.color || "Blue", // Use saved color from API
             };
           }
-        })
+        }),
       );
       setFolders(foldersWithMeta);
     } catch (error) {
@@ -683,7 +686,10 @@ export default function DashboardPage() {
                         "0 2px 4px rgba(0,0,0,0.04)";
                     }}
                   >
-                    <Link href={`/dashboard/${folder.id}`} className="cursor-pointer">
+                    <Link
+                      href={`/dashboard/${folder.id}`}
+                      className="cursor-pointer"
+                    >
                       {/* Top Row: Folder Icon + Title */}
                       <div className="flex-1 flex items-center gap-4 px-5 py-5 transition-all duration-200">
                         <svg
@@ -716,11 +722,21 @@ export default function DashboardPage() {
                     <div className="px-5 pb-4 border-t border-gray-100">
                       <Link
                         href={`/dashboard/${folder.id}/progress`}
-                        className="block w-full text-center py-2 px-4 mt-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white text-xs font-semibold rounded transition-all duration-200"
+                        className="block w-full text-center py-2 px-4 mt-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-semibold rounded transition-all duration-200"
                       >
                         <span className="flex items-center justify-center gap-2">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                            />
                           </svg>
                           View Progress
                         </span>

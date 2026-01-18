@@ -371,6 +371,8 @@ If the question doesn't fit any concept well, return the most foundational/gener
 
         prompt = f'''You are a curriculum expert. Classify each of the following questions into ONE of the available concepts.
 
+IMPORTANT: Try to distribute questions across DIFFERENT concepts as much as possible. Only assign multiple questions to the same concept if they are clearly about the exact same topic. Prefer variety to ensure balanced coverage of all concepts.
+
 Questions:
 {questions_text}
 

@@ -223,6 +223,13 @@ class BKTService:
                 "effective_P_T": float
             }
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info("  🧮 [BKTService] Starting full_bkt_update...")
+        logger.info(f"     Input: P_L={P_L_old:.4f}, is_correct={is_correct}, P_T={P_T:.4f}, P_G={P_G:.4f}, P_S={P_S:.4f}")
+        logger.info(f"     Mistakes: {mistake_count}")
+        
         # Adjust learning rate based on mistakes
         # More mistakes = reduced learning signal even if eventually correct
         # Formula: P_T_effective = P_T * (1 / (1 + 0.3 * mistake_count))
@@ -231,6 +238,7 @@ class BKTService:
         # 2 mistakes: P_T_effective = P_T * 0.625
         # 3 mistakes: P_T_effective = P_T * 0.526
         effective_P_T = P_T * (1.0 / (1.0 + 0.3 * mistake_count)) if is_correct else P_T
+        logger.info(f"     Effective P_T: {P_T:.4f} → {effective_P_T:.4f} (penalty factor: {effective_P_T/P_T:.2f}x)")
 
         # Also adjust guess probability if they made mistakes but got it right
         # This accounts for "struggled but figured it out" vs "guessed correctly"
@@ -238,16 +246,23 @@ class BKTService:
         if is_correct and mistake_count > 0:
             # They worked through it, less likely to be a guess
             effective_P_G = P_G * (1.0 / (1.0 + 0.5 * mistake_count))
+            logger.info(f"     Effective P_G: {P_G:.4f} → {effective_P_G:.4f} (reduced guess probability)")
 
         # Step 1: Calculate posterior with adjusted parameters
+        logger.info("     Step 1: Calculating P(knew | action) via Bayes...")
         P_knew = cls.calculate_posterior(P_L_old, is_correct, effective_P_G, P_S)
+        logger.info(f"     → P(knew): {P_knew:.4f}")
 
         # Step 2: Update mastery with effective learning rate
+        logger.info("     Step 2: Updating P(L) with learning rate...")
         P_L_new = cls.update_mastery(P_L_old, P_knew, effective_P_T)
+        logger.info(f"     → P(L) new: {P_L_new:.4f} (change: {P_L_new - P_L_old:+.4f})")
 
         # Step 3: Determine status
         status_old = cls.determine_mastery_status(P_L_old)
         status_new = cls.determine_mastery_status(P_L_new)
+        logger.info(f"     Step 3: Status update: {status_old} → {status_new}")
+        logger.info("  ✅ [BKTService] BKT update complete")
 
         return {
             "P_L_old": P_L_old,

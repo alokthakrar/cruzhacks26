@@ -319,9 +319,13 @@ class GraphService:
         """
         Determine which concepts can be unlocked based on mastered prerequisites.
         
-        A concept can be unlocked if:
-        1. It's not already unlocked
-        2. All of its prerequisites are mastered
+        CASCADE UNLOCK LOGIC:
+        When a concept is mastered, this checks ALL concepts in the graph to see
+        if they can now be unlocked. A concept becomes unlockable when ALL of its
+        parent concepts have been mastered.
+        
+        This creates a cascade effect: mastering one concept can unlock multiple
+        child concepts if they have no other unmastered prerequisites.
         
         Args:
             graph: Knowledge graph
@@ -329,27 +333,30 @@ class GraphService:
             unlocked_concepts: Set of concept_ids already unlocked
         
         Returns:
-            List of concept_ids that can be newly unlocked
+            List of concept_ids that can be newly unlocked (sorted by depth for BFS)
         """
         unlockable = []
         
         for concept_id, node in graph.nodes.items():
-            # Skip if already unlocked
-            if concept_id in unlocked_concepts:
+            # Skip if already unlocked or mastered
+            if concept_id in unlocked_concepts or concept_id in mastered_concepts:
                 continue
             
             # Check if all prerequisites are mastered
             if not node.parents:
-                # Root node - can always be unlocked
+                # Root node - can always be unlocked (shouldn't happen, roots auto-unlock on init)
                 unlockable.append(concept_id)
             else:
-                # Check if all parents are mastered
+                # Check if ALL parents are mastered (this is the cascade condition)
                 all_prerequisites_mastered = all(
                     parent_id in mastered_concepts
                     for parent_id in node.parents
                 )
                 if all_prerequisites_mastered:
                     unlockable.append(concept_id)
+        
+        # Sort by depth to unlock concepts in breadth-first order
+        unlockable.sort(key=lambda cid: graph.nodes[cid].depth)
         
         return unlockable
     

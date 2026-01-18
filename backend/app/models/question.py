@@ -40,6 +40,7 @@ class PDFQuestion(PDFQuestionBase):
     times_attempted: int = 0
     times_correct: int = 0
     created_at: datetime
+    is_solved: bool = False  # Will be set based on user's solved_questions
 
     class Config:
         populate_by_name = True

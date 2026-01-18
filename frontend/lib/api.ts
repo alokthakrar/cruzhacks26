@@ -391,10 +391,9 @@ export async function deleteSubject(subjectId: string): Promise<void> {
   }
 }
 
-// ===== BKT (Bayesian Knowledge Tracing) API =====
-
 // BKT Types
 export type ConceptMastery = {
+  concept_id: string
   P_L: number
   P_T: number
   P_G: number
@@ -404,6 +403,12 @@ export type ConceptMastery = {
   correct_count: number
   unlocked_at?: string
   mastered_at?: string
+  is_unlocked?: boolean
+  is_mastered?: boolean
+  // Frontend helper fields
+  concept_name?: string
+  accuracy?: number
+  solved_count?: number
 }
 
 export type MasteryState = {
@@ -418,6 +423,44 @@ export type MasteryState = {
   total_questions_answered: number
   created_at: string
   last_updated: string
+}
+
+export type ProgressSummary = {
+  total_questions_answered: number
+  total_solved_questions: number
+  elo_rating: number
+  concepts_attempted: number
+  concepts_mastered: number
+  concepts_unlocked: number
+  average_mastery: number
+  mastery_percentage: number
+  questions_by_concept: Array<{
+    concept_id: string
+    concept_name: string
+    count: number
+  }>
+  recent_submissions: Array<{
+    timestamp: string
+    concept_id: string
+    is_correct: boolean
+    mastery_change: number
+  }>
+}
+
+export type KnowledgeGraphNode = {
+  concept_id: string
+  name: string
+  description: string
+  parents: string[]
+  children: string[]
+  depth: number
+}
+
+export type KnowledgeGraph = {
+  _id: string
+  subject_id: string
+  nodes: Record<string, KnowledgeGraphNode>
+  root_concepts: string[]
 }
 
 export type BKTQuestion = {
@@ -453,7 +496,6 @@ export type AnswerSubmission = {
   is_correct: boolean
   user_answer?: string
   time_taken_seconds?: number
-  // Mistake tracking for BKT magnitude adjustment
   mistake_count?: number
   mistakes?: MistakeRecord[]
 }
@@ -474,13 +516,14 @@ export type AnswerResult = {
 
 export type MasteryStatusResponse = {
   concept_id: string
-  concept_name: string
-  P_L: number
   mastery_status: 'locked' | 'learning' | 'mastered'
+  mastery_probability: number
   observations: number
-  accuracy: number
+  correct_count: number
   unlocked_at?: string
   mastered_at?: string
+  is_unlocked?: boolean
+  is_mastered?: boolean
 }
 
 export type ProgressSummary = {
@@ -656,6 +699,45 @@ export async function getKnowledgeGraph(
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.detail || 'Failed to get knowledge graph')
+  }
+
+  return await response.json()
+}
+
+export type MistakeHistory = {
+  concept_id: string
+  total_attempts: number
+  mistakes: {
+    timestamp: string
+    question_id?: string
+    user_answer?: string
+    P_L_before: number
+    P_L_after: number
+    mastery_change: number
+    student_elo_before: number
+    student_elo_after: number
+  }[]
+  correct_attempts: number
+  accuracy: number
+  accuracy_percentage: number
+}
+
+/**
+ * Get mistake history for a specific concept.
+ */
+export async function getConceptMistakes(
+  userId: string,
+  subjectId: string,
+  conceptId: string,
+  limit: number = 20
+): Promise<MistakeHistory> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/mistakes/${encodeURIComponent(userId)}/${encodeURIComponent(subjectId)}/${encodeURIComponent(conceptId)}?limit=${limit}`
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get mistake history')
   }
 
   return await response.json()

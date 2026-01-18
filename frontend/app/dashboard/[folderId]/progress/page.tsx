@@ -3,7 +3,10 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { getKnowledgeGraph, getMasteryState, type KnowledgeGraph, type ConceptMastery } from '@/lib/api'
+import { getKnowledgeGraph, getMasteryState, getConceptMistakes, getProgress, type KnowledgeGraph, type ConceptMastery, type MistakeHistory, type ProgressSummary } from '@/lib/api'
+
+// Temporary user ID until auth is implemented (must match study mode!)
+const TEMP_USER_ID = 'demo_user'
 
 export default function ProgressPage() {
   const params = useParams()
@@ -12,9 +15,13 @@ export default function ProgressPage() {
 
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraph | null>(null)
   const [masteryData, setMasteryData] = useState<ConceptMastery[]>([])
+  const [progressSummary, setProgressSummary] = useState<ProgressSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [connections, setConnections] = useState<Array<{ x1: number; y1: number; x2: number; y2: number }>>([])
+  const [selectedConcept, setSelectedConcept] = useState<string | null>(null)
+  const [mistakeHistory, setMistakeHistory] = useState<MistakeHistory | null>(null)
+  const [loadingMistakes, setLoadingMistakes] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [folderName, setFolderName] = useState<string>('Loading...')
@@ -34,16 +41,53 @@ export default function ProgressPage() {
           setFolderName(graph.name)
         }
 
+        // Fetch progress summary
+        try {
+          const summary = await getProgress(TEMP_USER_ID, subjectId)
+          setProgressSummary(summary)
+        } catch (err) {
+          // No progress yet
+        }
+
         // Try to fetch user mastery (will fail if not initialized yet)
         try {
-          const mastery = await getMasteryState('dev_user_123', subjectId)
-          setMasteryData(mastery.concepts)
+          const masteryState = await getMasteryState(TEMP_USER_ID, subjectId)
+          console.log('📊 Mastery State Loaded:', masteryState)
+          console.log('📋 Unlocked Concepts:', masteryState.unlocked_concepts)
+          console.log('🎯 Mastered Concepts:', masteryState.mastered_concepts)
+          
+          // Convert concepts object to array with proper typing
+          const conceptsArray: ConceptMastery[] = Object.entries(masteryState.concepts).map(([conceptId, data]) => ({
+            concept_id: conceptId,
+            P_L: data.P_L,
+            P_T: data.P_T,
+            P_G: data.P_G,
+            P_S: data.P_S,
+            mastery_status: data.mastery_status,
+            observations: data.observations,
+            correct_count: data.correct_count,
+            unlocked_at: data.unlocked_at,
+            mastered_at: data.mastered_at,
+            is_unlocked: masteryState.unlocked_concepts.includes(conceptId),
+            is_mastered: masteryState.mastered_concepts.includes(conceptId)
+          }))
+          
+          console.log('✅ Concepts Array:', conceptsArray)
+          console.log('🔍 First concept detail:', conceptsArray[0])
+          setMasteryData(conceptsArray)
         } catch (err) {
+          console.error('⚠️ Failed to load mastery state:', err)
           // No mastery data yet - show all locked except root concepts
           if (graph.nodes && Array.isArray(graph.nodes)) {
             const initialMastery: ConceptMastery[] = graph.nodes.map(node => ({
               concept_id: node.id,
               P_L: node.bkt_params.P_L0,
+              P_T: node.bkt_params.P_T,
+              P_G: node.bkt_params.P_G,
+              P_S: node.bkt_params.P_S,
+              mastery_status: 'locked' as const,
+              observations: 0,
+              correct_count: 0,
               is_unlocked: graph.root_concepts.includes(node.id),
               is_mastered: false,
             }))
@@ -117,6 +161,25 @@ export default function ProgressPage() {
     return 'Unlocked'
   }
 
+  const handleViewMistakes = async (conceptId: string) => {
+    setSelectedConcept(conceptId)
+    setLoadingMistakes(true)
+    try {
+      const mistakes = await getConceptMistakes(TEMP_USER_ID, subjectId, conceptId, 20)
+      setMistakeHistory(mistakes)
+    } catch (err) {
+      console.error('Failed to load mistakes:', err)
+      setMistakeHistory(null)
+    } finally {
+      setLoadingMistakes(false)
+    }
+  }
+
+  const closeMistakeModal = () => {
+    setSelectedConcept(null)
+    setMistakeHistory(null)
+  }
+
   useLayoutEffect(() => {
     if (!knowledgeGraph || !Array.isArray(knowledgeGraph.nodes)) {
       setConnections([])
@@ -179,7 +242,7 @@ export default function ProgressPage() {
         cancelAnimationFrame(frameId)
       }
     }
-  }, [knowledgeGraph])
+  }, [knowledgeGraph, masteryData])
 
   if (loading) {
     return (
@@ -260,6 +323,12 @@ export default function ProgressPage() {
             <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total Concepts</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{knowledgeGraph.nodes.length}</p>
+            </div>
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Problems Solved</p>
+              <p className="text-2xl font-bold text-purple-600 mt-1">
+                {progressSummary?.total_solved_questions || 0}
+              </p>
             </div>
             <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Unlocked</p>
@@ -393,6 +462,60 @@ export default function ProgressPage() {
                                     style={{ width: `${percentage}%` }}
                                   ></div>
                                 </div>
+                                
+                                {/* Observations and Accuracy */}
+                                <div className="mt-3 pt-3 border-t border-gray-200/50 space-y-1">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-xs text-gray-600">Questions Practiced</span>
+                                    <span className="text-xs font-semibold text-gray-800">{mastery.observations}</span>
+                                  </div>
+                                  {mastery.observations > 0 && (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-xs text-gray-600">Accuracy</span>
+                                      <span className="text-xs font-semibold text-gray-800">
+                                        {mastery.correct_count}/{mastery.observations} ({Math.round((mastery.correct_count / mastery.observations) * 100)}%)
+                                      </span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* View Mistakes Button */}
+                                  {mastery.observations > 0 && mastery.observations > mastery.correct_count && (
+                                    <button
+                                      onClick={() => handleViewMistakes(nodeId)}
+                                      className="w-full mt-2 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                    >
+                                      View Mistakes ({mastery.observations - mastery.correct_count})
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* BKT Parameters - Always show if mastery data exists */}
+                            {mastery && mastery.P_L !== undefined && (
+                              <div className="mt-3 pt-3 border-t border-gray-200/50">
+                                <p className="text-xs font-semibold text-gray-700 mb-2">BKT Parameters</p>
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-xs text-gray-500">P(L)</span>
+                                    <span className="text-xs font-mono font-semibold text-blue-600">{(mastery.P_L || 0).toFixed(3)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-xs text-gray-500">P(T)</span>
+                                    <span className="text-xs font-mono font-semibold text-purple-600">{(mastery.P_T || 0).toFixed(3)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-xs text-gray-500">P(G)</span>
+                                    <span className="text-xs font-mono font-semibold text-orange-600">{(mastery.P_G || 0).toFixed(3)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-xs text-gray-500">P(S)</span>
+                                    <span className="text-xs font-mono font-semibold text-red-600">{(mastery.P_S || 0).toFixed(3)}</span>
+                                  </div>
+                                </div>
+                                <div className="mt-2 text-xs text-gray-500">
+                                  Status: {mastery.mastery_status} | Unlocked: {mastery.is_unlocked ? 'Yes' : 'No'}
+                                </div>
                               </div>
                             )}
 
@@ -425,6 +548,100 @@ export default function ProgressPage() {
           </div>
         </div>
       </div>
+
+      {/* Mistake History Modal */}
+      {selectedConcept && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={closeMistakeModal}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-red-50 to-red-100 px-6 py-4 border-b border-red-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-red-900">Mistake History</h2>
+                <button
+                  onClick={closeMistakeModal}
+                  className="text-red-600 hover:text-red-800 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              {knowledgeGraph?.nodes && (
+                <p className="text-sm text-red-700 mt-1">
+                  {Array.isArray(knowledgeGraph.nodes) 
+                    ? knowledgeGraph.nodes.find((n: any) => (n.id ?? n.concept_id) === selectedConcept)?.name 
+                    : Object.values(knowledgeGraph.nodes).find((n: any) => (n.id ?? n.concept_id) === selectedConcept)?.name
+                  }
+                </p>
+              )}
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+              {loadingMistakes ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-red-600"></div>
+                </div>
+              ) : mistakeHistory ? (
+                <div className="space-y-4">
+                  {/* Summary */}
+                  <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-red-600 font-semibold">Total Attempts</p>
+                        <p className="text-2xl font-bold text-red-900">{mistakeHistory.total_attempts}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-red-600 font-semibold">Mistakes</p>
+                        <p className="text-2xl font-bold text-red-900">{mistakeHistory.mistakes.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-red-600 font-semibold">Accuracy</p>
+                        <p className="text-2xl font-bold text-red-900">{mistakeHistory.accuracy_percentage}%</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mistake List */}
+                  {mistakeHistory.mistakes.length > 0 ? (
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-gray-900">Recent Mistakes</h3>
+                      {mistakeHistory.mistakes.map((mistake, idx) => (
+                        <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-xs text-gray-500">
+                              {new Date(mistake.timestamp).toLocaleString()}
+                            </span>
+                            <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                              mistake.mastery_change < 0 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {mistake.mastery_change > 0 ? '+' : ''}{(mistake.mastery_change * 100).toFixed(1)}% mastery
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-gray-600">P(L) Before:</span>
+                              <span className="ml-1 font-semibold">{(mistake.P_L_before * 100).toFixed(1)}%</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">P(L) After:</span>
+                              <span className="ml-1 font-semibold">{(mistake.P_L_after * 100).toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-500 py-8">No mistakes yet - great job!</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">Failed to load mistake history</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         @keyframes fade-in {

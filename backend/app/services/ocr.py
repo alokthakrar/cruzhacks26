@@ -44,9 +44,9 @@ class OCRService:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=settings.google_api_key)
-                self.gemini_model = genai.GenerativeModel("gemini-2.0-flash-exp")
+                self.gemini_model = genai.GenerativeModel("gemini-2.5-flash")
                 self.use_google_ai = True
-                print("✅ OCR Service: Using Google AI Studio (gemini-2.0-flash-exp)")
+                print("✅ OCR Service: Using Google AI Studio (gemini-2.5-flash)")
                 return
             except Exception as e:
                 print(f"⚠️  OCR Service: Failed to init Google AI Studio: {e}")
@@ -254,7 +254,11 @@ Return JSON format:
     "correct_answer": null (we don't provide solutions, only hints)
 }}
 
-For bounding_box: Use 0-1000 normalized coordinates to mark the SPECIFIC incorrect part (e.g., wrong number, sign error, inconsistent simplification).
+For bounding_box: Use 0-1000 normalized coordinates to mark the SPECIFIC incorrect part:
+- For SIGN ERRORS: The box must cover ONLY the minus (-) or plus (+) sign character itself, positioned IMMEDIATELY BEFORE the number. Example: if "-42" has wrong sign, box covers just the "-" symbol, not "42"
+- The box should be tight around the problematic element
+- For arithmetic errors: Highlight the specific wrong number or operation
+- For other errors: Highlight the relevant incorrect part
 
 For visual_feedback: Provide EDUCATIONAL HINTS, NOT SOLUTIONS:
 - ❌ DON'T say: "Should be: 8"

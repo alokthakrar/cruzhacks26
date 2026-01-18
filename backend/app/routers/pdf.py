@@ -375,6 +375,15 @@ async def get_subject_questions(
     # Get total count
     total = await questions_collection.count_documents(query)
 
+    # Get user's solved questions for this subject
+    from ..database import get_database
+    db = get_database()
+    mastery_doc = await db["user_mastery"].find_one({
+        "user_id": user_id,
+        "subject_id": subject_id
+    })
+    solved_questions = set(mastery_doc.get("solved_questions", [])) if mastery_doc else set()
+
     # Get paginated results
     skip = (page - 1) * limit
     cursor = questions_collection.find(query).sort(
@@ -383,8 +392,14 @@ async def get_subject_questions(
 
     questions = await cursor.to_list(length=limit)
 
+    # Add solved status to each question
+    questions_with_solved = []
+    for q in questions:
+        q["is_solved"] = q["_id"] in solved_questions
+        questions_with_solved.append(PDFQuestion(**q))
+
     return PDFQuestionsListResponse(
-        questions=[PDFQuestion(**q) for q in questions],
+        questions=questions_with_solved,
         total=total,
         page=page,
         limit=limit,

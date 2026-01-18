@@ -32,9 +32,13 @@ class PDFQuestion(PDFQuestionBase):
 
     id: str = Field(alias="_id")
     pdf_id: str
-    user_id: str
+    created_by: str
     subject_id: Optional[str] = None  # Associated subject for pooling questions
+    concept_id: Optional[str] = None  # Concept from knowledge graph for BKT
     cropped_image: str  # base64 encoded PNG
+    elo_rating: int = 1200  # Default Elo rating for BKT
+    times_attempted: int = 0
+    times_correct: int = 0
     created_at: datetime
 
     class Config:

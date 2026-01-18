@@ -57,3 +57,8 @@ def get_pdfs_collection():
 def get_questions_collection():
     """Get questions collection."""
     return get_database()["questions"]
+
+
+def get_knowledge_graphs_collection():
+    """Get knowledge_graphs collection."""
+    return get_database()["knowledge_graphs"]

@@ -6,7 +6,7 @@ import type { ReactSketchCanvasRef } from "react-sketch-canvas";
 import { useOCR } from "@/hooks/useOCR";
 import {
     AlertCircle,
-    // Lightbulb 
+    Lightbulb
 } from "lucide-react";
 
 const ReactSketchCanvas = dynamic(
@@ -57,8 +57,8 @@ export default function MathLine({
     const [isEditing, setIsEditing] = useState(false);
     const { performOCR, error } = useOCR();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const [, setVisualFeedback] = useState<VisualFeedback | null>(null);
-    const [, setShowHint] = useState(false);
+    const [visualFeedback, setVisualFeedback] = useState<VisualFeedback | null>(null);
+    const [showHint, setShowHint] = useState(false);
     const [canvasHeight, setCanvasHeight] = useState(96); // h-24 = 96px
     const [isResizing, setIsResizing] = useState(false);
     const resizeStartY = useRef(0);
@@ -210,8 +210,7 @@ export default function MathLine({
                     />
 
                     {/* Visual Feedback Overlay */}
-                    {/* {showVisualFeedback && visualFeedback?.bounding_box && (
-                    <>
+                    {showVisualFeedback && visualFeedback?.bounding_box && (
                         <div
                             className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none z-10 transition-all duration-500"
                             style={{
@@ -221,21 +220,7 @@ export default function MathLine({
                                 width: `${(visualFeedback.bounding_box[3] - visualFeedback.bounding_box[1]) / 10}%`,
                             }}
                         />
-                        {/* Feedback Bubble - Hint Only */}
-                    {/* {visualFeedback.visual_feedback && (
-                            <div 
-                                className="absolute z-20 bg-yellow-500 text-gray-900 text-xs px-3 py-2 rounded-lg shadow-xl pointer-events-none font-semibold"
-                                style={{
-                                    top: `${(visualFeedback.bounding_box[0] / 10) - 10 < 0 ? (visualFeedback.bounding_box[2] / 10) + 2 : (visualFeedback.bounding_box[0] / 10) - 8}%`,
-                                    left: `${visualFeedback.bounding_box[1] / 10}%`,
-                                    maxWidth: "220px"
-                                }}
-                            >
-                                💡 {visualFeedback.visual_feedback}
-                            </div>
-                        )} */}
-                    {/* </>
-                )} */}
+                )}
 
 
                     {/* OCR Result Display - click to edit */}
@@ -273,14 +258,13 @@ export default function MathLine({
                             <AlertCircle className="w-6 h-6 text-red-500 cursor-help animate-pulse drop-shadow-lg" />
                             <div className="hidden group-hover:block absolute top-0 left-full ml-2 bg-red-50 border-2 border-red-300 px-4 py-3 shadow-xl rounded-lg min-w-[250px] max-w-sm whitespace-normal z-20">
                                 <div className="text-sm font-semibold text-red-700 mb-1">Incorrect transformation</div>
-                                <div className="text-sm text-red-600">{validationResult.error || validationResult.explanation}</div>
+                                <div className="text-sm text-red-600">{validationResult.explanation || "Check your work carefully"}</div>
                             </div>
                         </div>
                     )}
 
                     {/* Show hint lightbulb when user writes "hint" or when there's a warning */}
-                    {/*
-                {((showHint && validationResult) || (validationResult && validationResult.is_valid && validationResult.warning)) && (
+                    {((showHint && validationResult) || (validationResult && validationResult.is_valid && validationResult.warning)) && (
                     <div className="absolute top-2 left-2 group z-10">
                         <Lightbulb className="w-6 h-6 text-yellow-500 cursor-help animate-pulse drop-shadow-lg" />
                         <div className="hidden group-hover:block absolute top-full left-0 mt-1 bg-yellow-50 border-2 border-yellow-300 px-4 py-3 shadow-xl min-w-[250px] max-w-sm whitespace-normal z-20">
@@ -291,7 +275,6 @@ export default function MathLine({
                         </div>
                     </div>
                 )}
-                */}
 
                     {/* OCR Error Display */}
                     {error && (

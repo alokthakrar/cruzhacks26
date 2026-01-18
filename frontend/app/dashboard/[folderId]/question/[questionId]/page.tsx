@@ -34,6 +34,8 @@ export default function QuestionCanvasPage() {
   const [lineTexts, setLineTexts] = useState<Map<number, string>>(new Map())
   const [validationResults, setValidationResults] = useState<Map<number, ValidationResult>>(new Map())
   const [showVisualFeedback, setShowVisualFeedback] = useState(true)
+  const [isEraser, setIsEraser] = useState(false)
+  const [useLLMFeedback, setUseLLMFeedback] = useState(true)
   
   // Scratch paper state
   const [isScratchPaperOpen, setIsScratchPaperOpen] = useState(false)
@@ -209,6 +211,7 @@ export default function QuestionCanvasPage() {
         setValidationResults(resultsMap)
 
         // Check if problem is solved: backend returns is_complete when all valid + final answer reached
+        console.log(`🔍 Validation: allValid=${allValid}, hasFinalAnswer=${hasFinalAnswer}, is_complete=${data.is_complete}`)
         setIsSolved(data.is_complete === true)
       } catch (err) {
         console.error('Validation error:', err)
@@ -394,6 +397,19 @@ export default function QuestionCanvasPage() {
           <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-4">
             {/* Drawing Tools */}
             <div className="flex items-center gap-6">
+              {/* Eraser Toggle */}
+              <button
+                onClick={() => setIsEraser(!isEraser)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  isEraser
+                    ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title={isEraser ? 'Switch to pen' : 'Switch to eraser'}
+              >
+                {isEraser ? '🧹 Eraser' : '✏️ Pen'}
+              </button>
+
               {/* Color Picker */}
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">Color:</span>
@@ -401,9 +417,12 @@ export default function QuestionCanvasPage() {
                   {['#000000', '#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'].map((color) => (
                     <button
                       key={color}
-                      onClick={() => setStrokeColor(color)}
+                      onClick={() => {
+                        setStrokeColor(color)
+                        setIsEraser(false)
+                      }}
                       className={`w-7 h-7 rounded-full border-2 transition-all ${
-                        strokeColor === color ? 'border-gray-900 scale-110' : 'border-gray-300 hover:scale-105'
+                        strokeColor === color && !isEraser ? 'border-gray-900 scale-110' : 'border-gray-300 hover:scale-105'
                       }`}
                       style={{ backgroundColor: color }}
                       title={color}
@@ -433,18 +452,18 @@ export default function QuestionCanvasPage() {
               </div>
             </div>
 
-            {/* Visual Feedback Toggle - COMMENTED OUT */}
-            {/* <button
-              onClick={() => setShowVisualFeedback(!showVisualFeedback)}
+            {/* LLM Feedback Toggle */}
+            <button
+              onClick={() => setUseLLMFeedback(!useLLMFeedback)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                showVisualFeedback
-                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                useLLMFeedback
+                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
-              title={showVisualFeedback ? 'Hide detailed error highlighting' : 'Show detailed error highlighting'}
+              title={useLLMFeedback ? 'Using AI-enhanced feedback' : 'Using SymPy-only validation'}
             >
-              {showVisualFeedback ? '📍 Detailed Feedback' : '✓ Simple Feedback'}
-            </button> */}
+              {useLLMFeedback ? '🤖 AI Feedback' : '📐 SymPy Only'}
+            </button>
           </div>
 
           <div>
@@ -457,13 +476,13 @@ export default function QuestionCanvasPage() {
                 <MathLine
                   key={lineNumber}
                   lineNumber={lineNumber}
-                  strokeColor={strokeColor}
-                  strokeWidth={strokeWidth}
+                  strokeColor={isEraser ? '#FFFFFF' : strokeColor}
+                  strokeWidth={isEraser ? strokeWidth * 3 : strokeWidth}
                   onStrokeEnd={() => handleStrokeEnd(lineNumber)}
                   onTextChange={handleTextChange}
                   validationResult={validationResults.get(lineNumber)}
                   onClearValidation={handleClearValidation}
-                  showVisualFeedback={showVisualFeedback}
+                  showVisualFeedback={useLLMFeedback}
                   problemContext={problemText}
                   previousStep={previousStep}
                 />
@@ -475,21 +494,14 @@ export default function QuestionCanvasPage() {
         {/* Bottom Bar with AI Status, Mistake Count, and Next Button */}
         <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <div className={`w-2 h-2 rounded-full animate-pulse ${isSolved ? 'bg-green-500' : 'bg-blue-500'}`}></div>
-              <span className="font-medium">
-                {isSolved ? 'Problem solved!' : 'AI is monitoring your work...'}
-              </span>
-            </div>
-            {/* Mistake count - COMMENTED OUT */}
-            {/* {mistakes.length > 0 && (
+            {mistakes.length > 0 && (
               <div className="flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <span className="font-medium">{mistakes.length} mistake{mistakes.length !== 1 ? 's' : ''}</span>
               </div>
-            )} */}
+            )}
           </div>
 
           {/* Next Question Button */}

@@ -81,7 +81,8 @@ export default function MathLine({
             if (result) {
                 setLatex(result.latex);
                 // Set visual feedback if Gemini detected an error
-                console.log('📍 Visual Feedback Data:', result.visualFeedback);
+                console.log('📍 [OCR] Visual Feedback from Gemini:', result.visualFeedback);
+                console.log('📍 [OCR] Setting visual feedback state');
                 setVisualFeedback(result.visualFeedback);
                 // Check if user is requesting a hint
                 setShowHint(result.latex.toLowerCase().includes("hint"));
@@ -93,6 +94,7 @@ export default function MathLine({
 
     const handleStroke = () => {
         // Clear visual feedback while writing
+        console.log('✏️ [STROKE] Clearing visual feedback');
         setVisualFeedback(null);
 
         // Clear validation result while writing
@@ -103,10 +105,10 @@ export default function MathLine({
             clearTimeout(debounceTimerRef.current);
         }
 
-        // Set new timer for 2 seconds
+        // Set new timer for 2.7 seconds
         debounceTimerRef.current = setTimeout(() => {
             checkOCR();
-        }, 2000);
+        }, 2700);
 
         onStrokeEnd?.();
     };
@@ -114,6 +116,7 @@ export default function MathLine({
     const handleClear = () => {
         canvasRef.current?.clearCanvas();
         setLatex("");
+        console.log('🧹 [CLEAR] Clearing visual feedback');
         setVisualFeedback(null);
         setShowHint(false);
 
@@ -209,22 +212,33 @@ export default function MathLine({
                         style={{ position: "absolute", inset: 0 }}
                     />
 
-                    {/* Visual Feedback Overlay */}
+                    {/* Visual Feedback Overlay with Yellow Tooltip */}
                     {showVisualFeedback && visualFeedback?.bounding_box && (
                         <div
-                            className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none z-10 transition-all duration-500"
+                            className="absolute border-2 border-red-500 bg-red-500/10 z-10 transition-all duration-500 group/feedback cursor-help"
                             style={{
                                 top: `${visualFeedback.bounding_box[0] / 10}%`,
                                 left: `${visualFeedback.bounding_box[1] / 10}%`,
                                 height: `${(visualFeedback.bounding_box[2] - visualFeedback.bounding_box[0]) / 10}%`,
                                 width: `${(visualFeedback.bounding_box[3] - visualFeedback.bounding_box[1]) / 10}%`,
                             }}
-                        />
-                )}
+                        >
+                            {/* Yellow tooltip on hover */}
+                            {visualFeedback.visual_feedback && (
+                                <div className="hidden group-hover/feedback:block absolute top-full left-0 mt-1 bg-yellow-50 border-2 border-yellow-400 px-4 py-3 shadow-xl rounded-lg min-w-[250px] max-w-sm whitespace-normal z-30">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Lightbulb className="w-4 h-4 text-yellow-600" />
+                                        <span className="text-sm font-semibold text-yellow-700">Hint</span>
+                                    </div>
+                                    <div className="text-sm text-yellow-700">{visualFeedback.visual_feedback}</div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
 
-                    {/* OCR Result Display - click to edit */}
-                    {showVisualFeedback && latex && !isEditing && (
+                    {/* OCR Result Display - always show extracted text */}
+                    {latex && !isEditing && (
                         <span
                             onClick={() => setIsEditing(true)}
                             className="absolute top-2 right-2 text-sm font-mono text-gray-800 cursor-default max-w-[60%] truncate"

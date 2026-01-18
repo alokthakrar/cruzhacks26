@@ -118,8 +118,8 @@ async def analyze_handwriting_ocr_first(
         latex_string=result["latex"],
         is_correct=result["is_correct"],
         feedback=result["feedback"],
-        hints=result["hints"],
-        error_types=result["error_types"],
+        hints=result.get("hints") or [],
+        error_types=result.get("error_types") or [],
         bounding_box=result.get("bounding_box"),
         visual_feedback=result.get("visual_feedback"),
         correct_answer=result.get("correct_answer"),
@@ -175,34 +175,9 @@ async def validate_sequence(request: ValidateSequenceRequest):
     
     results = validator.validate_sequence(request.expressions)
 
-    # Check each result for errors and use LLM fallback for better feedback
+    # Log validation results - no LLM fallback, hints come from OCR visual feedback
     for i, result in enumerate(results):
         print(f"Step {i+1}: is_valid={result['is_valid']}, error={result.get('error')}")
-        
-        if not result["is_valid"]:
-            # Use LLM fallback for ANY invalid step to provide better feedback
-            prev_expr = request.expressions[i]
-            curr_expr = request.expressions[i + 1]
-            
-            print(f"DEBUG: Using LLM fallback for: '{prev_expr}' -> '{curr_expr}'")
-            
-            try:
-                llm_result = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    ocr_service.validate_step_with_llm,
-                    prev_expr,
-                    curr_expr
-                )
-                
-                # LLM only provides better error messages, doesn't override validity
-                if llm_result:
-                    # Keep the symbolic validator's is_valid decision
-                    result["error"] = llm_result.get("error") or llm_result.get("explanation", result.get("error"))
-                    result["explanation"] = llm_result.get("explanation", "Check your work")
-                    result["warning"] = None  # Silent fallback
-            except Exception as e:
-                print(f"LLM fallback failed: {e}")
-                # Keep original symbolic error
 
     all_valid = all(r["is_valid"] for r in results)
 

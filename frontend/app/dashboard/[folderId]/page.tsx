@@ -203,7 +203,7 @@ export default function FolderQuestionsPage() {
               {/* Progress Bar */}
               <div className="flex-1 max-w-md">
                 <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>Overall Mastery</span>
+                  <span>Average Concept Mastery (P_L)</span>
                   <span className="font-semibold">{progress?.mastery_percentage || 0}%</span>
                 </div>
                 <div className="h-3 bg-gray-200 rounded-full overflow-hidden">

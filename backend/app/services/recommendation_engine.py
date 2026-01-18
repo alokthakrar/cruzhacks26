@@ -230,48 +230,90 @@ class RecommendationEngine:
         Returns:
             Dict with update results, achievements, and next recommendation
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info("🔍 [RecommendationEngine] Loading question from database...")
         # Load question
         question_doc = await self.questions_collection.find_one({"_id": question_id})
         if not question_doc:
+            logger.error(f"❌ Question not found: {question_id}")
             return {"error": "Question not found"}
         
         question = Question(**question_doc)
         concept_id = question.concept_id
+        question_preview = (question.question_text[:50] + "...") if question.question_text else "[No text - image question]"
+        logger.info(f"✅ Question loaded: {question_preview}")
+        logger.info(f"   Concept ID: {concept_id}")
+        logger.info(f"   Question Elo: {question.elo_rating}")
         
         # Load user mastery
+        logger.info("🔍 Loading user mastery state...")
         mastery_doc = await self.db["user_mastery"].find_one({
             "user_id": user_id,
             "subject_id": subject_id
         })
         
         if not mastery_doc:
+            logger.error(f"❌ User mastery state not found for user={user_id}, subject={subject_id}")
             return {"error": "User mastery state not found"}
         
         mastery_state = UserMastery(**mastery_doc)
+        logger.info(f"✅ User mastery loaded:")
+        logger.info(f"   Student Elo: {mastery_state.elo_rating}")
+        logger.info(f"   Total Questions: {mastery_state.total_questions_answered}")
+        logger.info(f"   Mastered Concepts: {len(mastery_state.mastered_concepts)}")
+        
+        # Load knowledge graph for BKT parameters
+        logger.info(f"🔍 Loading knowledge graph...")
+        graph = await self.graph_service.get_graph(subject_id)
+        if not graph:
+            logger.warning("⚠️ No knowledge graph found - using default BKT params")
         
         # Get or create concept mastery
+        logger.info(f"🔍 Checking concept mastery for: {concept_id}")
         if concept_id not in mastery_state.concepts:
-            # Initialize concept if not tracked yet
-            if concept_id not in mastery_state.concepts:
-                # Get default BKT params from graph
-                if graph and concept_id in graph.nodes:
-                    default_params = graph.nodes[concept_id].default_params
-                    mastery_state.concepts[concept_id] = ConceptMastery(
-                        P_L=default_params.P_L0,
-                        P_T=default_params.P_T,
-                        P_G=default_params.P_G,
-                        P_S=default_params.P_S
-                    )
-                else:
-                    # Use defaults if no graph node
-                    mastery_state.concepts[concept_id] = ConceptMastery(
-                        P_L=0.10,
-                        P_T=0.10,
-                        P_G=0.25,
-                        P_S=0.10
-                    )
+            logger.info(f"   First attempt at this concept - initializing BKT")
+            # First time seeing this concept - initialize with graph defaults
+            if graph and concept_id in graph.nodes:
+                graph_node = graph.nodes[concept_id]
+                concept_mastery = ConceptMastery(
+                    concept_id=concept_id,
+                    P_L=graph_node.bkt_params.P_L0,
+                    P_T=graph_node.bkt_params.P_T,
+                    P_G=graph_node.bkt_params.P_G,
+                    P_S=graph_node.bkt_params.P_S,
+                    mastery_status="locked",
+                    observations=0,
+                    correct_count=0
+                )
+                mastery_state.concepts[concept_id] = concept_mastery
+                logger.info(f"   Initialized with P(L0)={concept_mastery.P_L}")
+                    
+                # CRITICAL FIX: Add concept to unlocked_concepts when first attempted
+                if concept_id not in mastery_state.unlocked_concepts:
+                    mastery_state.unlocked_concepts.append(concept_id)
+                    logger.info(f"   🔓 Added {concept_id} to unlocked_concepts")
+            else:
+                # Use fallback defaults if no graph node
+                logger.info(f"   Concept not in graph, using fallback defaults")
+                mastery_state.concepts[concept_id] = ConceptMastery(
+                    concept_id=concept_id,
+                    P_L=0.10,
+                    P_T=0.10,
+                    P_G=0.25,
+                    P_S=0.10,
+                    mastery_status="locked",
+                    observations=0,
+                    correct_count=0
+                )
         
         concept_mastery = mastery_state.concepts[concept_id]
+        logger.info(f"✅ Concept mastery state:")
+        logger.info(f"   P(L): {concept_mastery.P_L:.4f}")
+        logger.info(f"   Observations: {concept_mastery.observations}")
+        logger.info(f"   Correct: {concept_mastery.correct_count}/{concept_mastery.observations}")
+        logger.info(f"   Status: {concept_mastery.mastery_status}")
         
         # Save before state
         P_L_before = concept_mastery.P_L
@@ -280,6 +322,12 @@ class RecommendationEngine:
         status_before = self.bkt_service.determine_mastery_status(P_L_before)
         
         # Update BKT (with mistake count affecting learning rate)
+        logger.info(f"🧮 Running BKT calculation...")
+        logger.info(f"   P(L) before: {concept_mastery.P_L:.4f}")
+        logger.info(f"   P(T): {concept_mastery.P_T:.4f}")
+        logger.info(f"   P(G): {concept_mastery.P_G:.4f}")
+        logger.info(f"   P(S): {concept_mastery.P_S:.4f}")
+        logger.info(f"   Mistake count: {mistake_count}")
         bkt_result = self.bkt_service.full_bkt_update(
             P_L_old=concept_mastery.P_L,
             is_correct=is_correct,
@@ -289,14 +337,27 @@ class RecommendationEngine:
             mistake_count=mistake_count
         )
         
+        logger.info(f"✅ BKT calculation complete:")
+        logger.info(f"   P(L) after: {bkt_result['P_L_new']:.4f}")
+        logger.info(f"   P(knew): {bkt_result['P_knew']:.4f}")
+        logger.info(f"   Mastery change: {bkt_result['mastery_change']:+.4f}")
+        logger.info(f"   Status: {bkt_result['mastery_status_old']} → {bkt_result['mastery_status_new']}")
+        
         # Update Elo
+        logger.info(f"🧮 Running Elo calculation...")
+        logger.info(f"   Student Elo before: {mastery_state.elo_rating}")
+        logger.info(f"   Question Elo before: {question.elo_rating}")
         new_student_elo, new_question_elo = self.bkt_service.update_elo(
             student_elo=mastery_state.elo_rating,
             question_elo=question.elo_rating,
             is_correct=is_correct
         )
+        logger.info(f"✅ Elo calculation complete:")
+        logger.info(f"   Student Elo after: {new_student_elo} ({new_student_elo - mastery_state.elo_rating:+d})")
+        logger.info(f"   Question Elo after: {new_question_elo} ({new_question_elo - question.elo_rating:+d})")
         
         # Apply updates
+        logger.info("💾 Applying updates to mastery state...")
         concept_mastery.P_L = bkt_result["P_L_new"]
         concept_mastery.observations += 1
         if is_correct:
@@ -306,17 +367,35 @@ class RecommendationEngine:
         mastery_state.elo_rating = new_student_elo
         mastery_state.total_questions_answered += 1
         
+        # Track questions by concept
+        if not hasattr(mastery_state, 'questions_by_concept') or mastery_state.questions_by_concept is None:
+            mastery_state.questions_by_concept = {}
+        mastery_state.questions_by_concept[concept_id] = mastery_state.questions_by_concept.get(concept_id, 0) + 1
+        
+        # Track solved questions
+        if not hasattr(mastery_state, 'solved_questions') or mastery_state.solved_questions is None:
+            mastery_state.solved_questions = []
+        if question_id not in mastery_state.solved_questions:
+            mastery_state.solved_questions.append(question_id)
+        
+        logger.info(f"✅ Updates applied - Total questions: {mastery_state.total_questions_answered}")
+        logger.info(f"   Questions for {concept_id}: {mastery_state.questions_by_concept.get(concept_id, 0)}")
+        logger.info(f"   Total solved questions: {len(mastery_state.solved_questions)}")
+        
         # Check for achievements
+        logger.info("🏆 Checking for achievements...")
         unlocked_concepts = []
         concept_mastered = False
         
         if bkt_result["mastery_status_new"] == "mastered" and status_before != "mastered":
+            logger.info(f"🎉 CONCEPT MASTERED: {concept_id}")
             # Newly mastered!
             concept_mastered = True
             if concept_id not in mastery_state.mastered_concepts:
                 mastery_state.mastered_concepts.append(concept_id)
             
             # Check for new unlocks
+            logger.info("🔓 Checking for cascade unlocks...")
             graph = await self.graph_service.get_graph(subject_id)
             if graph:
                 new_unlocks = self.graph_service.get_next_unlockable_concepts(
@@ -324,13 +403,18 @@ class RecommendationEngine:
                     set(mastery_state.mastered_concepts),
                     set(mastery_state.unlocked_concepts)
                 )
+                logger.info(f"   Found {len(new_unlocks)} concepts ready to unlock: {new_unlocks}")
                 
                 for unlock_id in new_unlocks:
                     if unlock_id not in mastery_state.unlocked_concepts:
                         mastery_state.unlocked_concepts.append(unlock_id)
                         unlocked_concepts.append(unlock_id)
+                        logger.info(f"   🔓 Unlocked: {unlock_id}")
+            else:
+                logger.warning("⚠️ No knowledge graph found - cannot check for unlocks")
         
         # Update question stats
+        logger.info("💾 Updating question statistics...")
         await self.questions_collection.update_one(
             {"_id": question_id},
             {
@@ -341,8 +425,10 @@ class RecommendationEngine:
                 }
             }
         )
+        logger.info("✅ Question stats updated")
         
         # Update mastery state in database
+        logger.info("💾 Updating user mastery state in database...")
         await self.db["user_mastery"].update_one(
             {"user_id": user_id, "subject_id": subject_id},
             {
@@ -351,10 +437,13 @@ class RecommendationEngine:
                     "elo_rating": mastery_state.elo_rating,
                     "total_questions_answered": mastery_state.total_questions_answered,
                     "mastered_concepts": mastery_state.mastered_concepts,
-                    "unlocked_concepts": mastery_state.unlocked_concepts
+                    "unlocked_concepts": mastery_state.unlocked_concepts,
+                    "questions_by_concept": mastery_state.questions_by_concept,
+                    "solved_questions": mastery_state.solved_questions
                 }
             }
         )
+        logger.info("✅ User mastery state updated")
         
         # Generate feedback message
         feedback = self._generate_feedback_message(
@@ -362,10 +451,16 @@ class RecommendationEngine:
         )
         
         # Get next recommendation
+        logger.info("🎯 Getting next question recommendation...")
         next_question, reasoning, next_concept = await self.get_next_question(
             user_id, subject_id
         )
+        if next_concept:
+            logger.info(f"✅ Next recommendation: {next_concept}")
+        else:
+            logger.info("ℹ️ No next recommendation (all concepts complete or none available)")
         
+        logger.info("✅ [RecommendationEngine] Processing complete")
         return {
             "is_correct": is_correct,
             "mastery_change": bkt_result["mastery_change"],

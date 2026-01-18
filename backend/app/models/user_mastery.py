@@ -90,6 +90,14 @@ class UserMastery(BaseModel):
         ge=0,
         description="Total questions answered across all concepts"
     )
+    questions_by_concept: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Map of concept_id -> count of questions answered for that concept"
+    )
+    solved_questions: list[str] = Field(
+        default_factory=list,
+        description="List of question_ids that have been answered (for marking as solved)"
+    )
     created_at: datetime
     last_updated: datetime
     

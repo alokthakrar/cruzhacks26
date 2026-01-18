@@ -141,7 +141,27 @@ export default function QuestionCanvasPage() {
           })
 
           if (!result.is_valid) {
+            // Check if the expression looks incomplete (still being typed)
+            const toExpr = (result.to_expr || '').trim()
+            const isIncomplete = (
+              // Ends with an operator
+              /[+\-*/=^(]$/.test(toExpr) ||
+              // Unbalanced parentheses
+              (toExpr.match(/\(/g) || []).length > (toExpr.match(/\)/g) || []).length ||
+              // Very short (likely just started typing)
+              toExpr.length < 2 ||
+              // Empty
+              toExpr === ''
+            )
+
+            // Only count as invalid and track mistake if expression looks complete
+            if (isIncomplete) {
+              // Skip - expression is still being typed, don't mark as error
+              return
+            }
+
             allValid = false
+
             // Track this mistake if it's a new one we haven't recorded yet
             const existingMistake = mistakes.find(
               m => m.step_number === result.step_number &&

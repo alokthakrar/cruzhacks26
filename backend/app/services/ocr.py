@@ -44,9 +44,9 @@ class OCRService:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=settings.google_api_key)
-                self.gemini_model = genai.GenerativeModel("gemini-2.0-flash-exp")
+                self.gemini_model = genai.GenerativeModel("gemini-2.5-flash")
                 self.use_google_ai = True
-                print("✅ OCR Service: Using Google AI Studio (gemini-2.0-flash-exp)")
+                print("✅ OCR Service: Using Google AI Studio (gemini-2.5-flash)")
                 return
             except Exception as e:
                 print(f"⚠️  OCR Service: Failed to init Google AI Studio: {e}")

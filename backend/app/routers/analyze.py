@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Form
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 import time
@@ -6,6 +6,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 from ..services.ocr import ocr_service
+from ..services.symbolic_validator import get_validator
 
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
@@ -18,36 +19,41 @@ class PipelineResult(BaseModel):
     feedback: str
     hints: list[str]
     error_types: list[str]
+    bounding_box: Optional[list[int]] = None
+    visual_feedback: Optional[str] = None
+    correct_answer: Optional[str] = None
     error: Optional[str]
     timing: Dict[str, float]
 
 
 class OCRAnalysisResponse(BaseModel):
-    """Response model for OCR + AI analysis with parallel pipelines."""
-    # Primary result (Pix2Text pipeline)
+    """Response model for OCR + AI analysis with Gemini Vision as primary."""
+    # Primary result (Gemini Vision)
     latex_string: str
-    ocr_confidence: float
-    ocr_error: Optional[str]
     is_correct: Optional[bool]
     feedback: str
     hints: list[str]
     error_types: list[str]
+    bounding_box: Optional[list[int]] = None
+    visual_feedback: Optional[str] = None
+    correct_answer: Optional[str] = None
     analysis_error: Optional[str]
     timing: Dict[str, float]
-    # Gemini Vision pipeline result
-    gemini_vision_result: Optional[PipelineResult]
+    # Legacy Pix2Text pipeline result (optional, for comparison)
+    pix2text_result: Optional[PipelineResult] = None
 
 
 @router.post("/ocr_first", response_model=OCRAnalysisResponse)
 async def analyze_handwriting_ocr_first(
-    image: UploadFile = File(..., description="PNG image of handwritten math work")
+    image: UploadFile = File(..., description="PNG image of handwritten math work"),
+    problem_context: Optional[str] = Form(None),
+    previous_step: Optional[str] = Form(None)
 ):
     """
-    OCR-first analysis pipeline:
-    1. Extract LaTeX from handwritten image using Pix2Text
-    2. Analyze the LaTeX using Gemini AI for correctness and hints
-    
-    This two-step approach allows users to verify what the AI "saw" before trusting its feedback.
+    Gemini Vision pipeline: Extract math, analyze correctness, and detect visual errors in ONE call.
+    Fast and includes bounding box highlighting for errors.
+    Optionally accepts problem_context to check consistency with original problem.
+    Optionally accepts previous_step to validate step-by-step transformations.
     """
     timing = {}
     start_total = time.time()
@@ -69,169 +75,56 @@ async def analyze_handwriting_ocr_first(
         )
     timing["validation_ms"] = round((time.time() - start) * 1000, 2)
     
-    # Run both pipelines in parallel using ThreadPoolExecutor
-    executor = ThreadPoolExecutor(max_workers=2)
+    # Use Gemini Vision for everything (OCR + analysis + bounding box)
     loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, ocr_service.analyze_with_gemini_vision, image_bytes, problem_context, previous_step)
     
-    # Pipeline 1: Traditional Pix2Text OCR + Gemini analysis (sequential)
-    async def run_traditional_pipeline():
-        traditional_timing = {}
-        start_trad = time.time()
-        
-        # OCR Extraction
-        start = time.time()
-        ocr_result = await loop.run_in_executor(executor, ocr_service.extract_latex, image_bytes)
-        traditional_timing["ocr_total_ms"] = round((time.time() - start) * 1000, 2)
-        if "timing" in ocr_result:
-            for key, value in ocr_result["timing"].items():
-                traditional_timing[f"ocr_{key}"] = value
-        
-        if ocr_result["error"] or not ocr_result["latex"]:
-            traditional_timing["total_ms"] = round((time.time() - start_trad) * 1000, 2)
-            return ocr_result, None, traditional_timing
-        
-        # AI Analysis
-        start = time.time()
-        ai_result = await loop.run_in_executor(executor, ocr_service.analyze_with_gemini, ocr_result["latex"])
-        traditional_timing["ai_total_ms"] = round((time.time() - start) * 1000, 2)
-        if "timing" in ai_result:
-            for key, value in ai_result["timing"].items():
-                traditional_timing[f"ai_{key}"] = value
-        
-        traditional_timing["total_ms"] = round((time.time() - start_trad) * 1000, 2)
-        return ocr_result, ai_result, traditional_timing
-    
-    # Pipeline 2: Gemini Vision (single call)
-    async def run_gemini_vision_pipeline():
-        return await loop.run_in_executor(executor, ocr_service.analyze_with_gemini_vision, image_bytes)
-    
-    # Run both pipelines in parallel
-    start_parallel = time.time()
-    (ocr_result, ai_result, traditional_timing), gemini_vision_result = await asyncio.gather(
-        run_traditional_pipeline(),
-        run_gemini_vision_pipeline()
-    )
-    timing["parallel_execution_ms"] = round((time.time() - start_parallel) * 1000, 2)
-    
-    # Merge traditional pipeline timing
-    timing.update(traditional_timing)
-    
-    # Handle errors in traditional pipeline
-    if ocr_result["error"]:
-        timing["total_pipeline_ms"] = round((time.time() - start_total) * 1000, 2)
-        return OCRAnalysisResponse(
-            latex_string=ocr_result["latex"],
-            ocr_confidence=ocr_result["confidence"],
-            ocr_error=ocr_result["error"],
-            is_correct=None,
-            feedback="Cannot analyze - handwriting unclear",
-            hints=[],
-            error_types=[],
-            analysis_error=ocr_result["error"],
-            timing=timing,
-            gemini_vision_result=PipelineResult(
-                latex_string=gemini_vision_result["latex"],
-                is_correct=gemini_vision_result["is_correct"],
-                feedback=gemini_vision_result["feedback"],
-                hints=gemini_vision_result["hints"],
-                error_types=gemini_vision_result["error_types"],
-                error=gemini_vision_result["error"],
-                timing=gemini_vision_result["timing"]
-            ) if not gemini_vision_result.get("error") else None
-        )
-    
-    latex_string = ocr_result["latex"]
-    
-    if not latex_string:
-        timing["total_pipeline_ms"] = round((time.time() - start_total) * 1000, 2)
-        return OCRAnalysisResponse(
-            latex_string="",
-            ocr_confidence=0.0,
-            ocr_error="No text detected in image",
-            is_correct=None,
-            feedback="No mathematical expression detected. Please write more clearly or check the image.",
-            hints=["Ensure your handwriting is clear and dark", "Make sure the entire expression is visible"],
-            error_types=[],
-            analysis_error="No text detected",
-            timing=timing,
-            gemini_vision_result=PipelineResult(
-                latex_string=gemini_vision_result["latex"],
-                is_correct=gemini_vision_result["is_correct"],
-                feedback=gemini_vision_result["feedback"],
-                hints=gemini_vision_result["hints"],
-                error_types=gemini_vision_result["error_types"],
-                error=gemini_vision_result["error"],
-                timing=gemini_vision_result["timing"]
-            ) if not gemini_vision_result.get("error") else None
-        )
+    # Merge timing
+    if "timing" in result:
+        timing.update(result["timing"])
     
     timing["total_pipeline_ms"] = round((time.time() - start_total) * 1000, 2)
     
-    # Log timing breakdown to terminal with BOTH pipelines
+    # Handle errors
+    if result.get("error"):
+        return OCRAnalysisResponse(
+            latex_string="",
+            is_correct=None,
+            feedback=result.get("feedback", "Analysis failed"),
+            hints=[],
+            error_types=[],
+            bounding_box=None,
+            visual_feedback=None,
+            analysis_error=result["error"],
+            timing=timing
+        )
+    
+    # Log results
     print("\n" + "="*80)
-    print("📊 PARALLEL OCR PIPELINE COMPARISON")
+    print("🟢 GEMINI VISION PIPELINE (Single Call)")
     print("="*80)
-    print("\n🔵 Traditional Pipeline (Pix2Text → Gemini)")
-    print("-"*80)
     print(f"  Validation:           {timing.get('validation_ms', 0):>8.2f} ms")
-    print(f"  OCR Total:            {timing.get('ocr_total_ms', 0):>8.2f} ms")
-    print(f"    ├─ Image Load:      {timing.get('ocr_image_load_ms', 0):>8.2f} ms")
-    print(f"    ├─ Recognition:     {timing.get('ocr_ocr_recognition_ms', 0):>8.2f} ms  ⚡")
-    print(f"    ├─ Parse Result:    {timing.get('ocr_parse_result_ms', 0):>8.2f} ms")
-    print(f"    └─ LaTeX Conv:      {timing.get('ocr_latex_conversion_ms', 0):>8.2f} ms")
-    print(f"  AI Analysis:          {timing.get('ai_total_ms', 0):>8.2f} ms")
-    print(f"    ├─ Prompt Build:    {timing.get('ai_prompt_build_ms', 0):>8.2f} ms")
-    print(f"    ├─ Gemini API:      {timing.get('ai_gemini_api_call_ms', 0):>8.2f} ms  🌐")
-    print(f"    └─ Parse Response:  {timing.get('ai_parse_response_ms', 0):>8.2f} ms")
-    print(f"  Sequential Total:     {timing.get('total_ms', 0):>8.2f} ms")
-    print(f"  Extracted: {latex_string[:50]}{'...' if len(latex_string) > 50 else ''}")
-    print(f"  Result: {'✓ Correct' if ai_result['is_correct'] else '✗ Incorrect' if ai_result['is_correct'] is False else '? Unknown'}")
-    
-    print("\n🟢 Gemini Vision Pipeline (Single Call)")
-    print("-"*80)
-    if gemini_vision_result and not gemini_vision_result.get("error"):
-        gv_timing = gemini_vision_result["timing"]
-        print(f"  Image Prep:           {gv_timing.get('image_prep_ms', 0):>8.2f} ms")
-        print(f"  Prompt Build:         {gv_timing.get('prompt_build_ms', 0):>8.2f} ms")
-        print(f"  Gemini Vision API:    {gv_timing.get('gemini_vision_api_call_ms', 0):>8.2f} ms  👁️")
-        print(f"  Parse Response:       {gv_timing.get('parse_response_ms', 0):>8.2f} ms")
-        print(f"  Single Call Total:    {gv_timing.get('total_ms', 0):>8.2f} ms")
-        print(f"  Extracted: {gemini_vision_result['latex'][:50]}{'...' if len(gemini_vision_result['latex']) > 50 else ''}")
-        print(f"  Result: {'✓ Correct' if gemini_vision_result['is_correct'] else '✗ Incorrect' if gemini_vision_result['is_correct'] is False else '? Unknown'}")
-        
-        # Calculate speedup
-        speedup = (timing.get('total_ms', 0) / gv_timing.get('total_ms', 1)) if gv_timing.get('total_ms', 0) > 0 else 0
-        faster_pipeline = "Gemini Vision" if speedup > 1 else "Traditional"
-        speedup_pct = abs(speedup - 1) * 100
-        print(f"\n  ⚡ {faster_pipeline} is {speedup_pct:.1f}% {'faster' if speedup > 1 else 'slower'}")
-    else:
-        print(f"  ❌ Failed: {gemini_vision_result.get('error', 'Unknown error')}")
-    
-    print("\n⏱️  Parallel Execution")
-    print("-"*80)
-    print(f"  Wall Clock Time:      {timing.get('parallel_execution_ms', 0):>8.2f} ms")
-    print(f"  Total Pipeline:       {timing.get('total_pipeline_ms', 0):>8.2f} ms")
+    print(f"  Image Prep:           {timing.get('image_prep_ms', 0):>8.2f} ms")
+    print(f"  Gemini Vision API:    {timing.get('gemini_vision_api_call_ms', 0):>8.2f} ms  👁️")
+    print(f"  Parse Response:       {timing.get('parse_response_ms', 0):>8.2f} ms")
+    print(f"  Total:                {timing.get('total_pipeline_ms', 0):>8.2f} ms")
+    print(f"  Extracted: {result['latex'][:50]}{'...' if len(result['latex']) > 50 else ''}")
+    print(f"  Result: {'✓ Correct' if result['is_correct'] else '✗ Incorrect' if result['is_correct'] is False else '? Unknown'}")
+    if result.get('bounding_box'):
+        print(f"  Visual Error: {result.get('visual_feedback', 'N/A')}")
     print("="*80 + "\n")
     
     return OCRAnalysisResponse(
-        latex_string=latex_string,
-        ocr_confidence=ocr_result["confidence"],
-        ocr_error=None,
-        is_correct=ai_result["is_correct"],
-        feedback=ai_result["feedback"],
-        hints=ai_result["hints"],
-        error_types=ai_result.get("error_types", []),
-        analysis_error=ai_result["error"],
-        timing=timing,
-        gemini_vision_result=PipelineResult(
-            latex_string=gemini_vision_result["latex"],
-            is_correct=gemini_vision_result["is_correct"],
-            feedback=gemini_vision_result["feedback"],
-            hints=gemini_vision_result["hints"],
-            error_types=gemini_vision_result["error_types"],
-            error=gemini_vision_result["error"],
-            timing=gemini_vision_result["timing"]
-        ) if gemini_vision_result and not gemini_vision_result.get("error") else None
+        latex_string=result["latex"],
+        is_correct=result["is_correct"],
+        feedback=result["feedback"],
+        hints=result["hints"],
+        error_types=result["error_types"],
+        bounding_box=result.get("bounding_box"),
+        visual_feedback=result.get("visual_feedback"),
+        correct_answer=result.get("correct_answer"),
+        analysis_error=None,
+        timing=timing
     )
 
 

@@ -368,119 +368,280 @@ export async function deleteSubject(subjectId: string): Promise<void> {
   }
 }
 
-// ========================================
-// BKT / Adaptive Learning Types & Functions
-// ========================================
+// ===== BKT (Bayesian Knowledge Tracing) API =====
 
-export type KnowledgeNode = {
-  id: string
-  name: string
-  description: string
-  prerequisites: string[]
-  depth: number
-  bkt_params: {
-    P_L0: number
-    P_T: number
-    P_G: number
-    P_S: number
-  }
-}
-
-export type KnowledgeGraph = {
-  subject_id: string
-  name: string
-  description: string
-  nodes: KnowledgeNode[]
-  root_concepts: string[]
-  created_at: string
-}
-
+// BKT Types
 export type ConceptMastery = {
-  concept_id: string
-  P_L: number  // Current mastery probability (0-1)
-  is_unlocked: boolean
-  is_mastered: boolean
+  P_L: number
+  P_T: number
+  P_G: number
+  P_S: number
+  mastery_status: 'locked' | 'learning' | 'mastered'
+  observations: number
+  correct_count: number
+  unlocked_at?: string
+  mastered_at?: string
 }
 
-export type UserMastery = {
+export type MasteryState = {
+  _id: string
   user_id: string
   subject_id: string
   elo_rating: number
-  concepts: ConceptMastery[]
+  concepts: Record<string, ConceptMastery>
   unlocked_concepts: string[]
   mastered_concepts: string[]
+  current_focus?: string
   total_questions_answered: number
   created_at: string
-  updated_at: string
+  last_updated: string
+}
+
+export type BKTQuestion = {
+  id: string
+  subject_id: string
+  concept_id: string
+  concept_name?: string
+  question_text: string
+  question_image?: string
+  elo_rating: number
+  difficulty_label: string
+  success_rate?: number
+  times_attempted?: number
+}
+
+export type RecommendationResponse = {
+  question: BKTQuestion | null
+  reasoning: string
+  target_concept: string | null
+  concept_name?: string
+}
+
+export type AnswerSubmission = {
+  question_id: string
+  is_correct: boolean
+  user_answer?: string
+  time_taken_seconds?: number
+}
+
+export type AnswerResult = {
+  submission_id: string
+  is_correct: boolean
+  mastery_change: number
+  elo_change: number
+  new_mastery_probability: number
+  new_mastery_status: string
+  new_student_elo: number
+  unlocked_concepts: string[]
+  concept_mastered: boolean
+  feedback_message: string
+  recommended_next_concept?: string
+}
+
+export type MasteryStatusResponse = {
+  concept_id: string
+  concept_name: string
+  P_L: number
+  mastery_status: 'locked' | 'learning' | 'mastered'
+  observations: number
+  accuracy: number
+  unlocked_at?: string
+  mastered_at?: string
 }
 
 export type ProgressSummary = {
-  elo_rating: number
-  mastery_percentage: number
-  concepts_unlocked: number
-  concepts_mastered: number
-  total_concepts: number
   total_questions_answered: number
-  current_focus_concept: string | null
+  elo_rating: number
+  concepts_attempted: number
+  concepts_mastered: number
+  concepts_unlocked: number
+  average_mastery: number
+  mastery_percentage: number
+  recent_submissions: {
+    timestamp: string
+    concept_id: string
+    is_correct: boolean
+    mastery_change: number
+  }[]
+}
+
+export type KnowledgeGraphNode = {
+  concept_id: string
+  name: string
+  description: string
+  parents: string[]
+  children: string[]
+  depth: number
+}
+
+export type KnowledgeGraph = {
+  _id: string
+  subject_id: string
+  nodes: Record<string, KnowledgeGraphNode>
+  root_concepts: string[]
 }
 
 /**
- * Initialize BKT mastery tracking for a user in a subject
+ * Initialize BKT mastery tracking for a user in a subject.
+ * Call this once when user starts a new subject.
  */
-export async function initializeMastery(userId: string, subjectId: string): Promise<UserMastery> {
-  const response = await fetch(`${API_BASE_URL}/bkt/initialize`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ user_id: userId, subject_id: subjectId }),
-  })
+export async function initializeBKT(
+  userId: string,
+  subjectId: string
+): Promise<{ mastery_id: string; message: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/initialize?user_id=${encodeURIComponent(userId)}&subject_id=${encodeURIComponent(subjectId)}`,
+    {
+      method: 'POST',
+    }
+  )
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.detail || 'Failed to initialize mastery')
+    throw new Error(error.detail || 'Failed to initialize BKT')
   }
 
   return await response.json()
 }
 
 /**
- * Get user's mastery state for a subject
+ * Get the next recommended question for a user based on BKT algorithm.
  */
-export async function getUserMastery(userId: string, subjectId: string): Promise<UserMastery> {
-  const response = await fetch(`${API_BASE_URL}/bkt/mastery/${userId}/${subjectId}`)
+export async function getNextQuestion(
+  userId: string,
+  subjectId: string
+): Promise<RecommendationResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/recommend/${encodeURIComponent(userId)}/${encodeURIComponent(subjectId)}`
+  )
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.detail || 'Failed to fetch mastery')
+    throw new Error(error.detail || 'Failed to get recommendation')
   }
 
   return await response.json()
 }
 
 /**
- * Get progress summary for a subject
+ * Submit an answer and update BKT + Elo ratings.
  */
-export async function getProgressSummary(userId: string, subjectId: string): Promise<ProgressSummary> {
-  const response = await fetch(`${API_BASE_URL}/bkt/progress/${userId}/${subjectId}`)
+export async function submitAnswer(
+  userId: string,
+  subjectId: string,
+  submission: AnswerSubmission
+): Promise<AnswerResult> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/submit?user_id=${encodeURIComponent(userId)}&subject_id=${encodeURIComponent(subjectId)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(submission),
+    }
+  )
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.detail || 'Failed to fetch progress')
+    throw new Error(error.detail || 'Failed to submit answer')
   }
 
   return await response.json()
 }
 
 /**
- * Get knowledge graph for a subject
+ * Get complete mastery state for a user in a subject.
  */
-export async function getKnowledgeGraph(subjectId: string): Promise<KnowledgeGraph> {
-  const response = await fetch(`${API_BASE_URL}/bkt/graph/${subjectId}`)
+export async function getMasteryState(
+  userId: string,
+  subjectId: string
+): Promise<MasteryState> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/mastery/${encodeURIComponent(userId)}/${encodeURIComponent(subjectId)}`
+  )
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.detail || 'Failed to fetch knowledge graph')
+    throw new Error(error.detail || 'Failed to get mastery state')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get mastery status for all concepts in a subject.
+ */
+export async function getConceptMastery(
+  userId: string,
+  subjectId: string
+): Promise<{ concepts: MasteryStatusResponse[] }> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/mastery/${encodeURIComponent(userId)}/${encodeURIComponent(subjectId)}/concepts`
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get concept mastery')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get high-level progress summary for visualization.
+ */
+export async function getProgress(
+  userId: string,
+  subjectId: string
+): Promise<ProgressSummary> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/progress/${encodeURIComponent(userId)}/${encodeURIComponent(subjectId)}`
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get progress')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get the knowledge graph structure for a subject.
+ */
+export async function getKnowledgeGraph(
+  subjectId: string
+): Promise<KnowledgeGraph> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/graph/${encodeURIComponent(subjectId)}`
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get knowledge graph')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Reset mastery state for a user (for testing/debugging).
+ */
+export async function resetMastery(
+  userId: string,
+  subjectId: string
+): Promise<{ message: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/bkt/mastery/${encodeURIComponent(userId)}/${encodeURIComponent(subjectId)}`,
+    {
+      method: 'DELETE',
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to reset mastery')
   }
 
   return await response.json()

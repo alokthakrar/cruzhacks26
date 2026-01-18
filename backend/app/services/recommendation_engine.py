@@ -279,10 +279,10 @@ class RecommendationEngine:
                 graph_node = graph.nodes[concept_id]
                 concept_mastery = ConceptMastery(
                     concept_id=concept_id,
-                    P_L=graph_node.bkt_params.P_L0,
-                    P_T=graph_node.bkt_params.P_T,
-                    P_G=graph_node.bkt_params.P_G,
-                    P_S=graph_node.bkt_params.P_S,
+                    P_L=graph_node.default_params.P_L0,
+                    P_T=graph_node.default_params.P_T,
+                    P_G=graph_node.default_params.P_G,
+                    P_S=graph_node.default_params.P_S,
                     mastery_status="locked",
                     observations=0,
                     correct_count=0

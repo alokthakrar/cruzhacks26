@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional
 
-from ..services.ocr import ocr_service
+# from ..services.ocr import ocr_service  # Disabled for BKT testing - pyarrow issue
 
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])

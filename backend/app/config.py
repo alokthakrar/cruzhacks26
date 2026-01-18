@@ -6,23 +6,28 @@ class Settings(BaseSettings):
     # MongoDB
     mongodb_uri: str
     database_name: str = "adaptive_tutor"
-
+    
     # Auth0 (optional - set skip_auth=true for development)
+    secret_key: str = "dev_secret_key_change_in_production"
     auth0_domain: str = ""
     auth0_api_audience: str = ""
     auth0_algorithms: str = "RS256"
     skip_auth: bool = True  # Set to False in production
 
-    # Google Gemini AI
+    # GCP Vertex AI
+    gcp_project_id: str
+    gcp_location: str = "us-central1"
+    
+    # Legacy Gemini API (optional - for OCR service)
     gemini_api_key: str = ""
 
     @property
     def auth0_issuer(self) -> str:
-        return f"https://{self.auth0_domain}/"
+        return f"https://{self.auth0_domain}/" if self.auth0_domain else ""
 
     @property
     def auth0_jwks_url(self) -> str:
-        return f"https://{self.auth0_domain}/.well-known/jwks.json"
+        return f"https://{self.auth0_domain}/.well-known/jwks.json" if self.auth0_domain else ""
 
     class Config:
         env_file = ".env"

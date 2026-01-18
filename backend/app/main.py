@@ -3,13 +3,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import connect_to_mongo, close_mongo_connection
-from .routers import users, subjects
+from .routers import users, subjects, analyze
+from .services.ocr import ocr_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle - connect/disconnect from MongoDB."""
+    """Manage application lifecycle - connect/disconnect from MongoDB and load ML models."""
     await connect_to_mongo()
+    ocr_service.load_models()
     yield
     await close_mongo_connection()
 
@@ -36,6 +38,7 @@ app.add_middleware(
 # Include routers
 app.include_router(users.router, prefix="/api")
 app.include_router(subjects.router, prefix="/api")
+app.include_router(analyze.router, prefix="/api")
 
 
 @app.get("/health")

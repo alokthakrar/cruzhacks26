@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Title from "./components/title";
 import Info from "./components/info";
+import MathBackground from "./components/math-background";
 import { Archivo } from "next/font/google";
 
 const archivo = Archivo({ subsets: ["latin"] });
@@ -37,8 +38,10 @@ export default function Home() {
         flexDirection: "column",
         gap: 16,
         position: "relative",
+        zIndex: 1,
       }}
     >
+      <MathBackground />
       <Title onOwlClick={handleOwlClick} />
       <div
         style={{
@@ -71,13 +74,13 @@ export default function Home() {
         )}
       </div>
       <Info
-        title="See your work, understand your thinking"
-        blurb="Perch reads your handwritten math step by step, understanding not just what you wrote but why. Get feedback in real-time on your work as you solve."
-        imageSrc="/mockup.svg"
+        title="Upload your math problems. Perch will help you through them."
+        blurb="Perch watches your reasoning and offers guidance as you work."
+        imageSrc="/dashboard.png"
         imageAlt="Perch dashboard mockup"
       />
       <Info
-        title="Learn by doing, not by copying"
+        title="Learn by doing, not by copying."
         blurb="When Perch spots a mistake, it guides you back on track without just giving the answer. You work through the problem, understand the concept, and own the solution."
         imageSrc="/mockup.svg"
         imageAlt="Perch dashboard mockup"

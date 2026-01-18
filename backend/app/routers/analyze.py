@@ -47,7 +47,8 @@ class OCRAnalysisResponse(BaseModel):
 async def analyze_handwriting_ocr_first(
     image: UploadFile = File(..., description="PNG image of handwritten math work"),
     problem_context: Optional[str] = Form(None),
-    previous_step: Optional[str] = Form(None)
+    previous_step: Optional[str] = Form(None),
+    request_hint: Optional[bool] = Form(False)
 ):
     """
     Gemini Vision pipeline: Extract math, analyze correctness, and detect visual errors in ONE call.
@@ -77,7 +78,7 @@ async def analyze_handwriting_ocr_first(
     
     # Use Gemini Vision for everything (OCR + analysis + bounding box)
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, ocr_service.analyze_with_gemini_vision, image_bytes, problem_context, previous_step)
+    result = await loop.run_in_executor(None, ocr_service.analyze_with_gemini_vision, image_bytes, problem_context, previous_step, request_hint)
     
     # Merge timing
     if "timing" in result:

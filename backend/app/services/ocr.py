@@ -182,15 +182,17 @@ class OCRService:
         
         return text
     
-    def analyze_with_gemini_vision(self, image_bytes: bytes, problem_context: str = None, previous_step: str = None) -> dict:
+    def analyze_with_gemini_vision(self, image_bytes: bytes, problem_context: str = None, previous_step: str = None, request_hint: bool = False) -> dict:
         """
         Alternative pipeline: Use Gemini vision to extract LaTeX and analyze in ONE call.
         Bypasses Pix2Text entirely - Gemini does both OCR and analysis.
-        
+
         Args:
             image_bytes: PNG image of handwritten math
             problem_context: Optional original problem statement for consistency checking
-        
+            previous_step: Optional previous step for validation
+            request_hint: If True, provides a hint for the next step instead of error analysis
+
         Returns:
             dict with 'latex' (str), 'is_correct' (bool), 'feedback' (str), 'hints' (list),
             'error' (str or None), 'timing' (dict)
@@ -225,8 +227,45 @@ class OCRService:
             print(f"\n🔍 Gemini Context Debug:")
             print(f"  Problem Context: {problem_context}")
             print(f"  Previous Step: {previous_step}")
-            
-            prompt = f"""You are a math tutor reviewing a student's handwritten work.{context_section}{step_validation}
+            print(f"  Request Hint: {request_hint}")
+
+            # Special prompt for hint requests
+            if request_hint:
+                hint_prompt = f"""You are a helpful math tutor. The student is asking for a hint on how to proceed with their work.
+
+ORIGINAL PROBLEM: {problem_context or 'Not provided'}
+CURRENT STEP: {previous_step or 'Not provided'}
+
+Provide a helpful hint that guides the student toward the next step WITHOUT giving away the answer.
+
+Return JSON format:
+{{
+    "extracted_text": "hint",
+    "is_correct": null,
+    "feedback": "Here's a hint to help you!",
+    "hints": [],
+    "error_types": [],
+    "bounding_box": null,
+    "visual_feedback": "Your helpful hint here - guide them to the next step without giving the answer",
+    "correct_answer": null
+}}
+
+Guidelines for your hint:
+- Be encouraging and supportive
+- Suggest a technique or operation to try (e.g., "Try isolating the variable by subtracting from both sides")
+- Point out what to focus on next
+- DON'T give the actual answer or the next step's result
+- Keep it brief (1-2 sentences)
+
+Examples of good hints:
+- "Try combining like terms on the left side"
+- "What happens if you divide both sides by the coefficient?"
+- "Look for a common factor you can pull out"
+- "Apply the distributive property here"
+"""
+                prompt = hint_prompt
+            else:
+                prompt = f"""You are a math tutor reviewing a student's handwritten work.{context_section}{step_validation}
 
 Analyze the image and provide:
 1. Extract the mathematical expression (convert to plain text, not LaTeX)

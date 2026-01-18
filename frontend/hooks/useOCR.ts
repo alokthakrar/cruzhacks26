@@ -23,7 +23,7 @@ export function useOCR() {
     const [isChecking, setIsChecking] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const performOCR = async (imageBlob: Blob, problemContext?: string, previousStep?: string): Promise<{ latex: string; visualFeedback: VisualFeedback | null }> => {
+    const performOCR = async (imageBlob: Blob, problemContext?: string, previousStep?: string, requestHint?: boolean): Promise<{ latex: string; visualFeedback: VisualFeedback | null }> => {
         setIsChecking(true);
         setError(null);
 
@@ -35,6 +35,9 @@ export function useOCR() {
             }
             if (previousStep) {
                 formData.append("previous_step", previousStep);
+            }
+            if (requestHint) {
+                formData.append("request_hint", "true");
             }
 
             const apiResponse = await fetch("http://localhost:8000/api/analyze/ocr_first", {

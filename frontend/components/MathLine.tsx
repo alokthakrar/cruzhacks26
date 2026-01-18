@@ -4,7 +4,10 @@ import { useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { ReactSketchCanvasRef } from "react-sketch-canvas";
 import { useOCR } from "@/hooks/useOCR";
-import { AlertCircle, Lightbulb } from "lucide-react";
+import {
+    AlertCircle,
+    // Lightbulb 
+} from "lucide-react";
 
 const ReactSketchCanvas = dynamic(
     () => import("react-sketch-canvas").then((mod) => mod.ReactSketchCanvas),
@@ -54,8 +57,8 @@ export default function MathLine({
     const [isEditing, setIsEditing] = useState(false);
     const { performOCR, error } = useOCR();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const [visualFeedback, setVisualFeedback] = useState<VisualFeedback | null>(null);
-    const [showHint, setShowHint] = useState(false);
+    const [, setVisualFeedback] = useState<VisualFeedback | null>(null);
+    const [, setShowHint] = useState(false);
     const [canvasHeight, setCanvasHeight] = useState(96); // h-24 = 96px
     const [isResizing, setIsResizing] = useState(false);
     const resizeStartY = useRef(0);
@@ -91,6 +94,9 @@ export default function MathLine({
     const handleStroke = () => {
         // Clear visual feedback while writing
         setVisualFeedback(null);
+
+        // Clear validation result while writing
+        onClearValidation?.(lineNumber);
 
         // Clear existing timer
         if (debounceTimerRef.current) {
@@ -181,30 +187,30 @@ export default function MathLine({
 
     return (
         <>
-        <div className={`relative flex border-b border-gray-200 hover:bg-gray-50 transition-colors ${getBgColor()}`}>
-            {/* Left border indicator */}
-            <div className={`w-1 border-l-4 ${getBorderColor()}`}></div>
+            <div className={`relative flex border-b border-gray-200 hover:bg-gray-50 transition-colors ${getBgColor()}`}>
+                {/* Left border indicator */}
+                <div className={`w-1 border-l-4 ${getBorderColor()}`}></div>
 
-            {/* Line number */}
-            <div className="w-12 flex-shrink-0 flex items-center justify-center text-sm text-gray-400">
-                {lineNumber}
-            </div>
+                {/* Line number */}
+                <div className="w-12 shrink-0 flex items-center justify-center text-sm text-gray-400">
+                    {lineNumber}
+                </div>
 
-            {/* Canvas area */}
-            <div className="flex-1 relative bg-white" style={{ height: `${canvasHeight}px` }}>
-                <ReactSketchCanvas
-                    ref={canvasRef}
-                    width="100%"
-                    height="100%"
-                    strokeWidth={strokeWidth}
-                    strokeColor={strokeColor}
-                    canvasColor="white"
-                    onStroke={handleStroke}
-                    style={{ position: "absolute", inset: 0 }}
-                />
+                {/* Canvas area */}
+                <div className="flex-1 relative bg-white" style={{ height: `${canvasHeight}px` }}>
+                    <ReactSketchCanvas
+                        ref={canvasRef}
+                        width="100%"
+                        height="100%"
+                        strokeWidth={strokeWidth}
+                        strokeColor={strokeColor}
+                        canvasColor="white"
+                        onStroke={handleStroke}
+                        style={{ position: "absolute", inset: 0 }}
+                    />
 
-                {/* Visual Feedback Overlay */}
-                {showVisualFeedback && visualFeedback?.bounding_box && (
+                    {/* Visual Feedback Overlay */}
+                    {/* {showVisualFeedback && visualFeedback?.bounding_box && (
                     <>
                         <div
                             className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none z-10 transition-all duration-500"
@@ -216,7 +222,7 @@ export default function MathLine({
                             }}
                         />
                         {/* Feedback Bubble - Hint Only */}
-                        {visualFeedback.visual_feedback && (
+                    {/* {visualFeedback.visual_feedback && (
                             <div 
                                 className="absolute z-20 bg-yellow-500 text-gray-900 text-xs px-3 py-2 rounded-lg shadow-xl pointer-events-none font-semibold"
                                 style={{
@@ -227,52 +233,53 @@ export default function MathLine({
                             >
                                 💡 {visualFeedback.visual_feedback}
                             </div>
-                        )}
-                    </>
-                )}
+                        )} */}
+                    {/* </>
+                )} */}
 
 
-                {/* OCR Result Display - click to edit */}
-                {showVisualFeedback && latex && !isEditing && (
-                    <span
-                        onClick={() => setIsEditing(true)}
-                        className="absolute top-2 right-2 text-sm font-mono text-gray-800 cursor-default max-w-[60%] truncate"
-                    >
-                        {latex}
-                    </span>
-                )}
+                    {/* OCR Result Display - click to edit */}
+                    {showVisualFeedback && latex && !isEditing && (
+                        <span
+                            onClick={() => setIsEditing(true)}
+                            className="absolute top-2 right-2 text-sm font-mono text-gray-800 cursor-default max-w-[60%] truncate"
+                        >
+                            {latex}
+                        </span>
+                    )}
 
-                {/* Editing mode */}
-                {isEditing && (
-                    <div className="absolute inset-0 flex items-center px-4 bg-white/95 z-10">
-                        <input
-                            type="text"
-                            value={latex}
-                            onChange={(e) => setLatex(e.target.value)}
-                            onBlur={() => setIsEditing(false)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    setIsEditing(false);
-                                }
-                            }}
-                            autoFocus
-                            className="flex-1 text-sm border border-blue-300 px-2 py-1 rounded font-mono"
-                        />
-                    </div>
-                )}
-
-                {/* Validation icons with hover tooltip */}
-                {validationResult && !validationResult.is_valid && (
-                    <div className="absolute top-2 left-2 group z-10">
-                        <AlertCircle className="w-6 h-6 text-red-500 cursor-help animate-pulse drop-shadow-lg" />
-                        <div className="hidden group-hover:block absolute top-full left-0 mt-1 bg-red-50 border-2 border-red-300 px-4 py-3 shadow-xl min-w-[250px] max-w-sm whitespace-normal z-20">
-                            <div className="text-sm font-semibold text-red-700 mb-1">Incorrect transformation</div>
-                            <div className="text-sm text-red-600">{validationResult.error || validationResult.explanation}</div>
+                    {/* Editing mode */}
+                    {isEditing && (
+                        <div className="absolute inset-0 flex items-center px-4 bg-white/95 z-10">
+                            <input
+                                type="text"
+                                value={latex}
+                                onChange={(e) => setLatex(e.target.value)}
+                                onBlur={() => setIsEditing(false)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        setIsEditing(false);
+                                    }
+                                }}
+                                autoFocus
+                                className="flex-1 text-sm border border-blue-300 px-2 py-1 rounded font-mono"
+                            />
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {/* Show hint lightbulb when user writes "hint" or when there's a warning */}
+                    {/* Validation icons with hover tooltip */}
+                    {validationResult && !validationResult.is_valid && (
+                        <div className="absolute top-2 left-2 group z-10">
+                            <AlertCircle className="w-6 h-6 text-red-500 cursor-help animate-pulse drop-shadow-lg" />
+                            <div className="hidden group-hover:block absolute top-0 left-full ml-2 bg-red-50 border-2 border-red-300 px-4 py-3 shadow-xl rounded-lg min-w-[250px] max-w-sm whitespace-normal z-20">
+                                <div className="text-sm font-semibold text-red-700 mb-1">Incorrect transformation</div>
+                                <div className="text-sm text-red-600">{validationResult.error || validationResult.explanation}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Show hint lightbulb when user writes "hint" or when there's a warning */}
+                    {/*
                 {((showHint && validationResult) || (validationResult && validationResult.is_valid && validationResult.warning)) && (
                     <div className="absolute top-2 left-2 group z-10">
                         <Lightbulb className="w-6 h-6 text-yellow-500 cursor-help animate-pulse drop-shadow-lg" />
@@ -284,44 +291,44 @@ export default function MathLine({
                         </div>
                     </div>
                 )}
+                */}
 
-                {/* OCR Error Display */}
-                {error && (
-                    <div className="absolute top-2 right-16 bg-red-50 border border-red-300 rounded px-3 py-1 shadow-md z-10 max-w-md">
-                        <div className="text-xs text-red-600">{error}</div>
-                    </div>
-                )}
+                    {/* OCR Error Display */}
+                    {error && (
+                        <div className="absolute top-2 right-16 bg-red-50 border border-red-300 rounded px-3 py-1 shadow-md z-10 max-w-md">
+                            <div className="text-xs text-red-600">{error}</div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Clear button */}
+                <div className="w-16 shrink-0 flex items-center justify-center border-l border-gray-200 bg-white">
+                    <button
+                        onClick={handleClear}
+                        className="w-full h-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-red-500 transition-colors"
+                        title="Clear this line"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
-            {/* Clear button */}
-            <div className="w-16 flex-shrink-0 flex items-center justify-center border-l border-gray-200 bg-white">
-                <button
-                    onClick={handleClear}
-                    className="w-full h-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-red-500 transition-colors"
-                    title="Clear this line"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+            {/* Resize Handle */}
+            <div
+                className={`h-2 bg-gray-100 hover:bg-blue-200 cursor-ns-resize transition-colors flex items-center justify-center group ${isResizing ? 'bg-blue-300' : ''
+                    }`}
+                onMouseDown={(e) => {
+                    setIsResizing(true);
+                    resizeStartY.current = e.clientY;
+                    resizeStartHeight.current = canvasHeight;
+                    e.preventDefault();
+                }}
+                title="Drag to resize"
+            >
+                <div className="w-12 h-1 bg-gray-400 rounded-full group-hover:bg-blue-500 transition-colors"></div>
             </div>
-        </div>
-        
-        {/* Resize Handle */}
-        <div
-            className={`h-2 bg-gray-100 hover:bg-blue-200 cursor-ns-resize transition-colors flex items-center justify-center group ${
-                isResizing ? 'bg-blue-300' : ''
-            }`}
-            onMouseDown={(e) => {
-                setIsResizing(true);
-                resizeStartY.current = e.clientY;
-                resizeStartHeight.current = canvasHeight;
-                e.preventDefault();
-            }}
-            title="Drag to resize"
-        >
-            <div className="w-12 h-1 bg-gray-400 rounded-full group-hover:bg-blue-500 transition-colors"></div>
-        </div>
         </>
     );
 }

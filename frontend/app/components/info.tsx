@@ -25,6 +25,9 @@ export default function Info({ title, blurb, imageSrc, imageAlt, reversed = fals
         padding: "48px 24px",
         maxWidth: 840,
         margin: "0 auto",
+        opacity: 0,
+        animation: "fadeIn 0.6s ease forwards",
+        animationDelay: "2.0s",
       }}
     >
       <div style={{ order: reversed ? 2 : 1, textAlign: "center" }}>
@@ -49,6 +52,11 @@ export default function Info({ title, blurb, imageSrc, imageAlt, reversed = fals
           priority
         />
       </div>
+      <style>{`
+        @keyframes fadeIn {
+          to { opacity: 1; }
+        }
+      `}</style>
     </section>
   );
 }

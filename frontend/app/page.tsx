@@ -1,13 +1,75 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Title from "./components/title";
 import Info from "./components/info";
+import { Archivo } from "next/font/google";
+
+const archivo = Archivo({ subsets: ["latin"] });
 
 export default function Home() {
+  const [showOwlMessage, setShowOwlMessage] = useState(false);
+  const [owlClicked, setOwlClicked] = useState(false);
+
+  const handleOwlClick = () => {
+    if (!owlClicked) {
+      setShowOwlMessage(true);
+      setOwlClicked(true);
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowOwlMessage(false);
+    };
+
+    if (showOwlMessage) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  }, [showOwlMessage]);
+
   return (
     <main
       className="paper min-h-screen"
-      style={{ display: "flex", flexDirection: "column", gap: 16 }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        position: "relative",
+      }}
     >
-      <Title />
+      <Title onOwlClick={handleOwlClick} />
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: "calc(100vh - 400px)",
+          textAlign: "center",
+          height: 68,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
+        }}
+      >
+        {showOwlMessage && (
+          <div
+            className={archivo.className}
+            style={{
+              fontSize: 18,
+              color: "#000000",
+              opacity: 0,
+              animation: "fadeInQuick 2.4s ease forwards",
+              pointerEvents: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            Watching your reasoning, not your answers.
+          </div>
+        )}
+      </div>
       <Info
         title="See your work, understand your thinking"
         blurb="Perch reads your handwritten math step by step, understanding not just what you wrote but why. Get feedback in real-time on your work as you solve."
@@ -20,6 +82,11 @@ export default function Home() {
         imageSrc="/mockup.svg"
         imageAlt="Perch dashboard mockup"
       />
+      <style>{`
+        @keyframes fadeInQuick {
+          to { opacity: 0.45; }
+        }
+      `}</style>
     </main>
   );
 }

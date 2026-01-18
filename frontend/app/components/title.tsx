@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Archivo } from "next/font/google";
 import Image from "next/image";
 
@@ -8,7 +9,8 @@ const archivo = Archivo({ subsets: ["latin"] });
 
 type Letter = { id: string; d: string };
 
-export default function Title() {
+export default function Title({ onOwlClick }: { onOwlClick: () => void }) {
+  const router = useRouter();
   // Put ONE outlined path per letter here (from Figma export)
   const letters: Letter[] = [
     {
@@ -83,6 +85,7 @@ export default function Title() {
             e.currentTarget.style.borderColor = "rgba(0, 0, 0, 0.8)";
             e.currentTarget.style.backgroundColor = "transparent";
           }}
+          onClick={() => router.push("/dashboard")}
         >
           Start solving →
         </button>
@@ -97,6 +100,18 @@ export default function Title() {
           bottom: 40,
           right: 40,
           filter: "drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.15))",
+          cursor: "pointer",
+          transition: "transform 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          (e.target as HTMLElement).style.transform = "scale(1.05)";
+        }}
+        onMouseLeave={(e) => {
+          (e.target as HTMLElement).style.transform = "scale(1)";
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOwlClick();
         }}
       />
     </main>

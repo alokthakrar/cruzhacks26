@@ -153,17 +153,14 @@ export default function MathLine({
                     style={{ position: "absolute", inset: 0 }}
                 />
 
-                {/* OCR Result Display with Edit */}
+                {/* OCR Result Display - click to edit */}
                 {latex && !isEditing && (
-                    <div className="absolute bottom-2 left-4 right-16 bg-blue-50 border border-blue-200 rounded px-2 py-1 text-sm font-mono text-gray-800 flex items-center justify-between">
-                        <span>{latex}</span>
-                        <button
-                            onClick={() => setIsEditing(true)}
-                            className="ml-2 px-2 py-0.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                        >
-                            Edit
-                        </button>
-                    </div>
+                    <span
+                        onClick={() => setIsEditing(true)}
+                        className="absolute top-2 right-2 text-sm font-mono text-gray-800 cursor-default max-w-[60%] truncate"
+                    >
+                        {latex}
+                    </span>
                 )}
 
                 {/* Editing mode */}

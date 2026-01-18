@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import MathLine from '@/components/MathLine'
+import ScratchPaper from '@/components/ScratchPaper'
 import { getQuestionById, getSubjectQuestions, Question, submitAnswer, MistakeRecord } from '@/lib/api'
 
 interface ValidationResult {
@@ -33,6 +34,10 @@ export default function QuestionCanvasPage() {
   const [lineTexts, setLineTexts] = useState<Map<number, string>>(new Map())
   const [validationResults, setValidationResults] = useState<Map<number, ValidationResult>>(new Map())
   const [showVisualFeedback, setShowVisualFeedback] = useState(true)
+  
+  // Scratch paper state
+  const [isScratchPaperOpen, setIsScratchPaperOpen] = useState(false)
+  const [scratchPaperPaths, setScratchPaperPaths] = useState<string>('')
 
   // Solved state
   const [isSolved, setIsSolved] = useState(false)
@@ -340,33 +345,47 @@ export default function QuestionCanvasPage() {
 
         {/* Problem Card */}
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
-              Question {question.question_number}
-            </span>
-            {question.difficulty_estimate && (
-              <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm">
-                {question.difficulty_estimate}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                Question {question.question_number}
               </span>
-            )}
-            {isSolved && (
-              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+              {question.difficulty_estimate && (
+                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm">
+                  {question.difficulty_estimate}
+                </span>
+              )}
+              {isSolved && (
+                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Solved!
               </span>
-            )}
+              )}
+            </div>
+
+            <button
+              onClick={() => setIsScratchPaperOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+              title="Open scratch paper for rough work"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Scratch Paper
+            </button>
           </div>
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
             <p className="text-gray-800 text-lg font-medium leading-relaxed">
               {question.text_content}
             </p>
-            {question.latex_content && (
+            {/* LaTeX content subtitle - COMMENTED OUT */}
+            {/* {question.latex_content && (
               <p className="text-gray-600 text-sm mt-2 font-mono">
                 {question.latex_content}
               </p>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -414,8 +433,8 @@ export default function QuestionCanvasPage() {
               </div>
             </div>
 
-            {/* Visual Feedback Toggle */}
-            <button
+            {/* Visual Feedback Toggle - COMMENTED OUT */}
+            {/* <button
               onClick={() => setShowVisualFeedback(!showVisualFeedback)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 showVisualFeedback
@@ -425,7 +444,7 @@ export default function QuestionCanvasPage() {
               title={showVisualFeedback ? 'Hide detailed error highlighting' : 'Show detailed error highlighting'}
             >
               {showVisualFeedback ? '📍 Detailed Feedback' : '✓ Simple Feedback'}
-            </button>
+            </button> */}
           </div>
 
           <div>
@@ -462,14 +481,15 @@ export default function QuestionCanvasPage() {
                 {isSolved ? 'Problem solved!' : 'AI is monitoring your work...'}
               </span>
             </div>
-            {mistakes.length > 0 && (
+            {/* Mistake count - COMMENTED OUT */}
+            {/* {mistakes.length > 0 && (
               <div className="flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <span className="font-medium">{mistakes.length} mistake{mistakes.length !== 1 ? 's' : ''}</span>
               </div>
-            )}
+            )} */}
           </div>
 
           {/* Next Question Button */}
@@ -498,6 +518,16 @@ export default function QuestionCanvasPage() {
           </button>
         </div>
       </div>
+
+      {/* Scratch Paper Modal */}
+      <ScratchPaper
+        isOpen={isScratchPaperOpen}
+        onClose={() => setIsScratchPaperOpen(false)}
+        strokeColor={strokeColor}
+        strokeWidth={strokeWidth}
+        savedPaths={scratchPaperPaths}
+        onSavePaths={setScratchPaperPaths}
+      />
     </div>
   )
 }

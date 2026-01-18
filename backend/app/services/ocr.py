@@ -234,9 +234,17 @@ Analyze the image and provide:
 3. Provide educational feedback
 4. If there's an error OR inconsistency OR invalid transformation, identify the EXACT location with a bounding box and provide the correct answer
 
+IMPORTANT FOR EXTRACTED TEXT:
+- Use ONLY standard ASCII characters for math: + - * / = ( ) digits and letters
+- Use regular hyphen (-) for minus/subtraction, NOT Unicode minus (−), NOT en-dash (–), NOT em-dash (—)
+- Use standard parentheses ( ), NOT Unicode variants
+- Do NOT use special Unicode symbols, dashes, or other formatting characters
+- Example CORRECT: "m^2-5m-14=0" or "x=-10+3"
+- Example WRONG: "m²–5m–14=0" or "x=−10+3"
+
 Return JSON format:
 {{
-    "extracted_text": "the mathematical expression in plain text (e.g., x^2+5x+6, not LaTeX)",
+    "extracted_text": "the mathematical expression in plain text using ONLY ASCII characters (e.g., x^2+5x+6, -10n+24=-6n+24)",
     "is_correct": true/false/null (null if you cannot determine),
     "feedback": "A brief assessment of the work",
     "hints": ["hint1", "hint2", ...] (helpful suggestions if there are errors),
@@ -437,6 +445,79 @@ Be constructive and educational. If the expression is incomplete or just shows s
                 "error_types": [],
                 "error": str(e),
                 "timing": timing
+            }
+    
+    def validate_step_with_llm(self, prev_expr: str, curr_expr: str) -> dict:
+        """
+        Use LLM to validate a math step and provide feedback.
+        Called as fallback when symbolic validation fails.
+        
+        Args:
+            prev_expr: Previous step expression
+            curr_expr: Current step expression
+            
+        Returns:
+            dict with 'is_valid' (bool), 'error' (str), 'explanation' (str)
+        """
+        if not self.gemini_model:
+            return {
+                "is_valid": False,
+                "error": "Complete this step to continue",
+                "explanation": "Check your work"
+            }
+        
+        try:
+            prompt = f"""You are a strict math tutor validating algebra work step-by-step.
+
+Previous step: {prev_expr}
+Current step: {curr_expr}
+
+The current step might be garbled by OCR or incomplete. Your job:
+
+1. If the current step is just arrows/symbols/incomplete (like "→", "—", or gibberish):
+   - Mark is_valid = false
+   - In "error": Suggest what the ACTUAL next algebraic step should be from the previous step
+   
+2. If you can infer a real math expression was attempted:
+   - Check if that transformation is mathematically correct
+   - If wrong, explain the mistake and what they should do instead
+
+Always be specific about the mathematics, not the formatting.
+
+Respond with JSON:
+{{
+    "is_valid": false (almost always false for incomplete/wrong steps),
+    "error": "What they should do mathematically (e.g., 'Distribute -12 across (x-12) to get -12x + 144' or 'This step is incorrect because...')",
+    "explanation": "Brief hint about the algebraic operation needed"
+}}"""
+            
+            response = self.gemini_model.generate_content(prompt)
+            response_text = response.text.strip()
+            
+            # Clean JSON markers
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+            
+            import json
+            result = json.loads(response_text)
+            
+            return {
+                "is_valid": result.get("is_valid", False),
+                "error": result.get("error", "Check your work"),
+                "explanation": result.get("explanation", "")
+            }
+            
+        except Exception as e:
+            print(f"LLM validation error: {e}")
+            return {
+                "is_valid": False,
+                "error": "Complete this step to continue",
+                "explanation": "Check your work"
             }
 
 

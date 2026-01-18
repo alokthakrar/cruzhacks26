@@ -19,7 +19,7 @@ export default function CanvasPage() {
   const [lineTexts, setLineTexts] = useState<Map<number, string>>(new Map());
   const [validationResults, setValidationResults] = useState<Map<number, ValidationResult>>(new Map());
   const [isValidating, setIsValidating] = useState(false);
-  const [finalResult, setFinalResult] = useState<{correct: boolean, message: string} | null>(null);
+  const [finalResult, setFinalResult] = useState<{ correct: boolean, message: string } | null>(null);
   const [ocrInProgress, setOcrInProgress] = useState<Set<number>>(new Set());
   const [writingInProgress, setWritingInProgress] = useState<Set<number>>(new Set());
 
@@ -113,11 +113,13 @@ export default function CanvasPage() {
       }
 
       const data = await response.json();
-      
+
       // Map results to line numbers
       // result.step_number 1 = transition from problem to line 1
       // result.step_number 2 = transition from line 1 to line 2, etc.
       const resultsMap = new Map<number, ValidationResult>();
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data.results.forEach((result: any) => {
         // step_number indicates the transition, so we apply it to the target line
         const lineNumber = result.step_number;
@@ -134,10 +136,10 @@ export default function CanvasPage() {
       // Check if all steps are valid and they reached a final answer
       const allValid = data.all_valid;
       const lastExpression = userExpressions[userExpressions.length - 1];
-      
+
       // Check if the last line is a solution (e.g., x=4, y=5, etc.)
       const isFinalAnswer = /^[a-zA-Z]\s*=\s*-?\d+(\.\d+)?$/.test(lastExpression);
-      
+
       if (allValid && isFinalAnswer) {
         setFinalResult({
           correct: true,
@@ -174,8 +176,8 @@ export default function CanvasPage() {
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-6">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-2">
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2"/>
-              <line x1="9" y1="3" x2="9" y2="21" strokeWidth="2"/>
+              <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" />
+              <line x1="9" y1="3" x2="9" y2="21" strokeWidth="2" />
             </svg>
             <span className="font-semibold text-gray-900">Show Your Work</span>
             <span className="text-sm text-gray-500">Write each step on a new line</span>
@@ -215,7 +217,7 @@ export default function CanvasPage() {
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
                 </svg>
                 Check My Answer
               </>
@@ -224,11 +226,10 @@ export default function CanvasPage() {
 
           {/* Final Result Message */}
           {finalResult && (
-            <div className={`w-full px-6 py-4 rounded-xl border-2 font-semibold text-center ${
-              finalResult.correct 
-                ? "bg-green-50 border-green-500 text-green-700" 
-                : "bg-yellow-50 border-yellow-500 text-yellow-700"
-            }`}>
+            <div className={`w-full px-6 py-4 rounded-xl border-2 font-semibold text-center ${finalResult.correct
+              ? "bg-green-50 border-green-500 text-green-700"
+              : "bg-yellow-50 border-yellow-500 text-yellow-700"
+              }`}>
               {finalResult.message}
             </div>
           )}

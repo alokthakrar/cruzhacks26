@@ -7,9 +7,9 @@ from ..auth import get_current_user_id
 from ..database import get_pdfs_collection, get_questions_collection, get_subjects_collection
 from ..models.question import (
     ExtractedPDF,
-    Question,
+    PDFQuestion,
     PDFUploadResponse,
-    QuestionsListResponse,
+    PDFQuestionsListResponse,
 )
 from ..services.pdf_extractor import pdf_extractor_service
 
@@ -209,7 +209,7 @@ async def get_pdf(
     return ExtractedPDF(**pdf)
 
 
-@router.get("/{pdf_id}/questions", response_model=QuestionsListResponse)
+@router.get("/{pdf_id}/questions", response_model=PDFQuestionsListResponse)
 async def get_pdf_questions(
     pdf_id: str,
     user_id: str = Depends(get_current_user_id),
@@ -249,15 +249,15 @@ async def get_pdf_questions(
 
     questions = await cursor.to_list(length=limit)
 
-    return QuestionsListResponse(
-        questions=[Question(**q) for q in questions],
+    return PDFQuestionsListResponse(
+        questions=[PDFQuestion(**q) for q in questions],
         total=total,
         page=page,
         limit=limit,
     )
 
 
-@router.get("/{pdf_id}/questions/{question_id}", response_model=Question)
+@router.get("/{pdf_id}/questions/{question_id}", response_model=PDFQuestion)
 async def get_question(
     pdf_id: str,
     question_id: str,
@@ -285,7 +285,7 @@ async def get_question(
             detail="Question not found",
         )
 
-    return Question(**question)
+    return PDFQuestion(**question)
 
 
 @router.delete("/{pdf_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -314,7 +314,7 @@ async def delete_pdf(
     return None
 
 
-@router.get("/subject/{subject_id}/questions", response_model=QuestionsListResponse)
+@router.get("/subject/{subject_id}/questions", response_model=PDFQuestionsListResponse)
 async def get_subject_questions(
     subject_id: str,
     user_id: str = Depends(get_current_user_id),
@@ -358,8 +358,8 @@ async def get_subject_questions(
 
     questions = await cursor.to_list(length=limit)
 
-    return QuestionsListResponse(
-        questions=[Question(**q) for q in questions],
+    return PDFQuestionsListResponse(
+        questions=[PDFQuestion(**q) for q in questions],
         total=total,
         page=page,
         limit=limit,

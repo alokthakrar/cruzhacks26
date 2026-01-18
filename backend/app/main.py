@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import connect_to_mongo, close_mongo_connection
-from .routers import users, subjects, analyze, pdf, pdf
+from .routers import users, subjects, analyze, pdf
 from .api import bkt
 # from .services.ocr import ocr_service  # Disabled for BKT testing - pyarrow dependency issue
 from .services.pdf_extractor import pdf_extractor_service
@@ -13,7 +13,7 @@ from .services.pdf_extractor import pdf_extractor_service
 async def lifespan(app: FastAPI):
     """Manage application lifecycle - connect/disconnect from MongoDB and load ML models."""
     await connect_to_mongo()
-    ocr_service.load_models()
+    # ocr_service.load_models()  # Disabled for BKT testing
     pdf_extractor_service.load_model()
     yield
     await close_mongo_connection()
@@ -45,7 +45,6 @@ app.include_router(subjects.router, prefix="/api")
 app.include_router(pdf.router, prefix="/api")
 # app.include_router(analyze.router, prefix="/api")  # Disabled for BKT testing - pyarrow issue
 app.include_router(bkt.router)
-app.include_router(pdf.router, prefix="/api")
 
 
 @app.get("/health")

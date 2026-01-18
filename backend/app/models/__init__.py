@@ -16,6 +16,12 @@ from .user_mastery import (
     MasteryStatusResponse,
 )
 from .question import (
+    BoundingBox,
+    PDFQuestion,
+    PDFQuestionCreate,
+    PDFQuestionsListResponse,
+    ExtractedPDF,
+    PDFUploadResponse,
     Question,
     QuestionCreate,
     QuestionUpdate,
@@ -25,13 +31,6 @@ from .answer_submission import (
     AnswerSubmission,
     AnswerSubmissionCreate,
     AnswerSubmissionResponse,
-)
-from .pdf import (
-    BoundingBox,
-    PDFQuestion,
-    PDFDocument,
-    PDFUploadResponse,
-    QuestionListResponse,
 )
 
 __all__ = [
@@ -55,6 +54,12 @@ __all__ = [
     "UserMasteryCreate",
     "UserMasteryUpdate",
     "MasteryStatusResponse",
+    "BoundingBox",
+    "PDFQuestion",
+    "PDFQuestionCreate",
+    "PDFQuestionsListResponse",
+    "ExtractedPDF",
+    "PDFUploadResponse",
     "Question",
     "QuestionCreate",
     "QuestionUpdate",
@@ -62,9 +67,4 @@ __all__ = [
     "AnswerSubmission",
     "AnswerSubmissionCreate",
     "AnswerSubmissionResponse",
-    "BoundingBox",
-    "PDFQuestion",
-    "PDFDocument",
-    "PDFUploadResponse",
-    "QuestionListResponse",
 ]

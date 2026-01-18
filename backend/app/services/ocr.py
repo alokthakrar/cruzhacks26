@@ -182,10 +182,14 @@ class OCRService:
         
         return text
     
-    def analyze_with_gemini_vision(self, image_bytes: bytes) -> dict:
+    def analyze_with_gemini_vision(self, image_bytes: bytes, problem_context: str = None, previous_step: str = None) -> dict:
         """
         Alternative pipeline: Use Gemini vision to extract LaTeX and analyze in ONE call.
         Bypasses Pix2Text entirely - Gemini does both OCR and analysis.
+        
+        Args:
+            image_bytes: PNG image of handwritten math
+            problem_context: Optional original problem statement for consistency checking
         
         Returns:
             dict with 'latex' (str), 'is_correct' (bool), 'feedback' (str), 'hints' (list),
@@ -208,23 +212,53 @@ class OCRService:
         try:
             # Stage 1: Prepare image for Gemini
             start = time.time()
-            prompt = """You are a math tutor reviewing a student's handwritten work. 
+            # Build prompt with optional problem context and previous step
+            context_section = ""
+            if problem_context:
+                context_section = f"\n\nORIGINAL PROBLEM: {problem_context}\n\nIMPORTANT: Check that the student's work is consistent with the original problem. Flag if they're simplifying in a way that doesn't match the problem's form or if they're solving for the wrong variable."
+            
+            step_validation = ""
+            if previous_step:
+                step_validation = f"\n\nPREVIOUS STEP: {previous_step}\n\n⚠️ CRITICAL VALIDATION REQUIRED ⚠️\nThis current step MUST be a mathematically valid transformation from '{previous_step}'.\n\nYOU MUST CHECK:\n1. ARITHMETIC: Verify all numbers are calculated correctly (e.g., 13-5 MUST equal 8, NOT 9 or any other number)\n2. OPERATIONS: Same operation must be applied to BOTH sides of equation\n3. ALGEBRA: Simplification must follow proper algebraic rules\n4. PROGRESSION: This must logically follow from the previous step\n\n❌ IF ANY ARITHMETIC IS WRONG, YOU MUST SET is_correct=false AND provide bounding_box!\n❌ Example: If previous is '2x+5=13' and student wrote '2x=9', this is INCORRECT because 13-5=8, not 9!\n\nDo NOT mark as correct unless the transformation is 100% mathematically valid."
+            
+            # Log what context Gemini is receiving
+            print(f"\n🔍 Gemini Context Debug:")
+            print(f"  Problem Context: {problem_context}")
+            print(f"  Previous Step: {previous_step}")
+            
+            prompt = f"""You are a math tutor reviewing a student's handwritten work.{context_section}{step_validation}
 
 Analyze the image and provide:
 1. Extract the mathematical expression (convert to plain text, not LaTeX)
-2. Determine if the work is correct
+2. Determine if the work is correct AND consistent with the original problem AND a valid transformation from the previous step
 3. Provide educational feedback
+4. If there's an error OR inconsistency OR invalid transformation, identify the EXACT location with a bounding box and provide the correct answer
 
 Return JSON format:
-{
+{{
     "extracted_text": "the mathematical expression in plain text (e.g., x^2+5x+6, not LaTeX)",
     "is_correct": true/false/null (null if you cannot determine),
     "feedback": "A brief assessment of the work",
     "hints": ["hint1", "hint2", ...] (helpful suggestions if there are errors),
-    "error_types": ["error_type1", ...] (categories like "algebraic_manipulation", "sign_error", etc.)
-}
+    "error_types": ["error_type1", ...] (categories like "algebraic_manipulation", "sign_error", "inconsistent_form", etc.),
+    "bounding_box": [ymin, xmin, ymax, xmax] (0-1000 scale) OR null if correct/no error to highlight,
+    "visual_feedback": "Short, educational HINT about the error (NOT the solution)" OR null if no error,
+    "correct_answer": null (we don't provide solutions, only hints)
+}}
 
-Be constructive and educational. If the expression is incomplete or just shows setup, indicate that in your feedback."""
+For bounding_box: Use 0-1000 normalized coordinates to mark the SPECIFIC incorrect part (e.g., wrong number, sign error, inconsistent simplification).
+
+For visual_feedback: Provide EDUCATIONAL HINTS, NOT SOLUTIONS:
+- ❌ DON'T say: "Should be: 8"
+- ✅ DO say: "Check your arithmetic!" or "Double-check this subtraction" or "Recount carefully"
+- ❌ DON'T say: "The answer is x=4"  
+- ✅ DO say: "Try dividing both sides" or "One more step to isolate the variable"
+- ❌ DON'T say: "This should be negative"
+- ✅ DO say: "Watch your signs!" or "Check the sign of this term"
+
+Be constructive, encouraging, and guide the student WITHOUT giving away the answer.
+For consistency: If solving "2x + 5 = 13" but student simplifies to "y = 4", flag the inconsistency.
+If the expression is incomplete or just shows setup, indicate that in your feedback."""
             
             if self.use_google_ai:
                 image = Image.open(io.BytesIO(image_bytes))
@@ -262,6 +296,9 @@ Be constructive and educational. If the expression is incomplete or just shows s
                 "feedback": result.get("feedback", ""),
                 "hints": result.get("hints", []),
                 "error_types": result.get("error_types", []),
+                "bounding_box": result.get("bounding_box"),
+                "visual_feedback": result.get("visual_feedback"),
+                "correct_answer": result.get("correct_answer"),
                 "error": None,
                 "timing": timing
             }

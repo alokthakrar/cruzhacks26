@@ -14,12 +14,10 @@ class Settings(BaseSettings):
     auth0_algorithms: str = "RS256"
     skip_auth: bool = True  # Set to False in production
 
-    # GCP Vertex AI
-    gcp_project_id: str
+    # Google Gemini AI (Vertex AI)
+    gemini_api_key: str = ""  # Deprecated - using Vertex AI now
+    gcp_project_id: str = ""
     gcp_location: str = "us-central1"
-    
-    # Legacy Gemini API (optional - for OCR service)
-    gemini_api_key: str = ""
 
     @property
     def auth0_issuer(self) -> str:

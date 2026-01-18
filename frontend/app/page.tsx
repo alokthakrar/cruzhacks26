@@ -77,13 +77,13 @@ export default function Home() {
         title="Upload your math problems. Perch will help you through them."
         blurb="Perch watches your reasoning and offers guidance as you work."
         imageSrc="/dashboard.png"
-        imageAlt="Perch dashboard mockup"
+        imageAlt="Perch dashboard"
       />
       <Info
         title="Learn by doing, not by copying."
         blurb="When Perch spots a mistake, it guides you back on track without just giving the answer. You work through the problem, understand the concept, and own the solution."
-        imageSrc="/mockup.svg"
-        imageAlt="Perch dashboard mockup"
+        imageSrc="/problem.png"
+        imageAlt="Perch problem solving"
       />
       <style>{`
         @keyframes fadeInQuick {

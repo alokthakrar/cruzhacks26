@@ -212,13 +212,21 @@ class RecommendationEngine:
         user_id: str,
         subject_id: str,
         question_id: str,
-        is_correct: bool
+        is_correct: bool,
+        mistake_count: int = 0
     ) -> Dict:
         """
         Process an answer submission and update BKT + Elo.
-        
+
         This is called after a student submits an answer.
-        
+
+        Args:
+            user_id: User identifier
+            subject_id: Subject identifier
+            question_id: Question identifier
+            is_correct: Whether the final answer was correct
+            mistake_count: Number of mistakes made during problem solving
+
         Returns:
             Dict with update results, achievements, and next recommendation
         """
@@ -271,13 +279,14 @@ class RecommendationEngine:
         question_elo_before = question.elo_rating
         status_before = self.bkt_service.determine_mastery_status(P_L_before)
         
-        # Update BKT
+        # Update BKT (with mistake count affecting learning rate)
         bkt_result = self.bkt_service.full_bkt_update(
             P_L_old=concept_mastery.P_L,
             is_correct=is_correct,
             P_T=concept_mastery.P_T,
             P_G=concept_mastery.P_G,
-            P_S=concept_mastery.P_S
+            P_S=concept_mastery.P_S,
+            mistake_count=mistake_count
         )
         
         # Update Elo

@@ -195,20 +195,22 @@ class BKTService:
         is_correct: bool,
         P_T: float,
         P_G: float,
-        P_S: float
+        P_S: float,
+        mistake_count: int = 0
     ) -> dict:
         """
         Complete BKT update in one call (convenience method).
-        
+
         Returns dict with all intermediate values for logging/debugging.
-        
+
         Args:
             P_L_old: Previous mastery probability
             is_correct: Whether answer was correct
             P_T: Transition probability (learn rate)
             P_G: Guess probability
             P_S: Slip probability
-        
+            mistake_count: Number of mistakes made during problem solving
+
         Returns:
             {
                 "P_L_old": float,
@@ -216,19 +218,37 @@ class BKTService:
                 "P_L_new": float,
                 "mastery_status_old": str,
                 "mastery_status_new": str,
-                "mastery_change": float
+                "mastery_change": float,
+                "mistake_count": int,
+                "effective_P_T": float
             }
         """
-        # Step 1: Calculate posterior
-        P_knew = cls.calculate_posterior(P_L_old, is_correct, P_G, P_S)
-        
-        # Step 2: Update mastery
-        P_L_new = cls.update_mastery(P_L_old, P_knew, P_T)
-        
+        # Adjust learning rate based on mistakes
+        # More mistakes = reduced learning signal even if eventually correct
+        # Formula: P_T_effective = P_T * (1 / (1 + 0.3 * mistake_count))
+        # 0 mistakes: P_T_effective = P_T (full learning)
+        # 1 mistake: P_T_effective = P_T * 0.77
+        # 2 mistakes: P_T_effective = P_T * 0.625
+        # 3 mistakes: P_T_effective = P_T * 0.526
+        effective_P_T = P_T * (1.0 / (1.0 + 0.3 * mistake_count)) if is_correct else P_T
+
+        # Also adjust guess probability if they made mistakes but got it right
+        # This accounts for "struggled but figured it out" vs "guessed correctly"
+        effective_P_G = P_G
+        if is_correct and mistake_count > 0:
+            # They worked through it, less likely to be a guess
+            effective_P_G = P_G * (1.0 / (1.0 + 0.5 * mistake_count))
+
+        # Step 1: Calculate posterior with adjusted parameters
+        P_knew = cls.calculate_posterior(P_L_old, is_correct, effective_P_G, P_S)
+
+        # Step 2: Update mastery with effective learning rate
+        P_L_new = cls.update_mastery(P_L_old, P_knew, effective_P_T)
+
         # Step 3: Determine status
         status_old = cls.determine_mastery_status(P_L_old)
         status_new = cls.determine_mastery_status(P_L_new)
-        
+
         return {
             "P_L_old": P_L_old,
             "P_knew": P_knew,
@@ -236,5 +256,7 @@ class BKTService:
             "mastery_status_old": status_old,
             "mastery_status_new": status_new,
             "mastery_change": P_L_new - P_L_old,
-            "is_correct": is_correct
+            "is_correct": is_correct,
+            "mistake_count": mistake_count,
+            "effective_P_T": effective_P_T
         }

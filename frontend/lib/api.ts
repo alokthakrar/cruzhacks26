@@ -9,7 +9,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/a
 
 // Types matching backend models
 export type Question = {
-  id: string
+  _id: string  // MongoDB uses _id
   pdf_id: string
   user_id: string
   subject_id?: string
@@ -67,7 +67,7 @@ export type SubjectUpdate = {
 const FAKE_QUESTIONS: { [key: string]: Question[] } = {
   '1': [
     {
-      id: 'q1',
+      _id: 'q1',
       pdf_id: 'pdf1',
       user_id: 'user1',
       subject_id: '1',
@@ -82,7 +82,7 @@ const FAKE_QUESTIONS: { [key: string]: Question[] } = {
       created_at: '2026-01-15T10:30:00',
     },
     {
-      id: 'q2',
+      _id: 'q2',
       pdf_id: 'pdf1',
       user_id: 'user1',
       subject_id: '1',
@@ -97,7 +97,7 @@ const FAKE_QUESTIONS: { [key: string]: Question[] } = {
       created_at: '2026-01-15T10:30:00',
     },
     {
-      id: 'q3',
+      _id: 'q3',
       pdf_id: 'pdf1',
       user_id: 'user1',
       subject_id: '1',
@@ -112,7 +112,7 @@ const FAKE_QUESTIONS: { [key: string]: Question[] } = {
       created_at: '2026-01-15T10:30:00',
     },
     {
-      id: 'q4',
+      _id: 'q4',
       pdf_id: 'pdf1',
       user_id: 'user1',
       subject_id: '1',
@@ -129,7 +129,7 @@ const FAKE_QUESTIONS: { [key: string]: Question[] } = {
   ],
   '2': [
     {
-      id: 'q5',
+      _id: 'q5',
       pdf_id: 'pdf2',
       user_id: 'user1',
       subject_id: '2',
@@ -144,7 +144,7 @@ const FAKE_QUESTIONS: { [key: string]: Question[] } = {
       created_at: '2026-01-14T14:20:00',
     },
     {
-      id: 'q6',
+      _id: 'q6',
       pdf_id: 'pdf2',
       user_id: 'user1',
       subject_id: '2',
@@ -260,7 +260,7 @@ export async function getQuestion(
 
     // Find question in fake data
     for (const questions of Object.values(FAKE_QUESTIONS)) {
-      const question = questions.find(q => q.id === questionId)
+      const question = questions.find(q => q._id === questionId)
       if (question) return question
     }
     throw new Error('Question not found')
@@ -276,6 +276,29 @@ export async function getQuestion(
       // },
     }
   )
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to fetch question')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get a specific question by its ID only (no pdf_id required)
+ */
+export async function getQuestionById(questionId: string): Promise<Question> {
+  if (USE_FAKE_DATA) {
+    await new Promise(resolve => setTimeout(resolve, 300))
+    for (const questions of Object.values(FAKE_QUESTIONS)) {
+      const question = questions.find(q => q._id === questionId)
+      if (question) return question
+    }
+    throw new Error('Question not found')
+  }
+
+  const response = await fetch(`${API_BASE_URL}/pdf/question/${questionId}`)
 
   if (!response.ok) {
     const error = await response.json()
@@ -417,11 +440,22 @@ export type RecommendationResponse = {
   concept_name?: string
 }
 
+export type MistakeRecord = {
+  step_number: number
+  error_type: 'arithmetic' | 'algebraic' | 'notation' | 'conceptual' | 'unknown'
+  error_message?: string
+  from_expr?: string
+  to_expr?: string
+}
+
 export type AnswerSubmission = {
   question_id: string
   is_correct: boolean
   user_answer?: string
   time_taken_seconds?: number
+  // Mistake tracking for BKT magnitude adjustment
+  mistake_count?: number
+  mistakes?: MistakeRecord[]
 }
 
 export type AnswerResult = {

@@ -389,3 +389,29 @@ async def get_subject_questions(
         page=page,
         limit=limit,
     )
+
+
+@router.get("/question/{question_id}", response_model=PDFQuestion)
+async def get_question_by_id(
+    question_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Get a specific question by its ID (without requiring pdf_id)."""
+    questions_collection = get_questions_collection()
+
+    question = await questions_collection.find_one({"_id": question_id})
+
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found",
+        )
+
+    # Verify the question belongs to the user (via created_by field)
+    if question.get("created_by") != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found",
+        )
+
+    return PDFQuestion(**question)

@@ -156,7 +156,8 @@ async def submit_answer(
             user_id=user_id,
             subject_id=subject_id,
             question_id=submission.question_id,
-            is_correct=submission.is_correct
+            is_correct=submission.is_correct,
+            mistake_count=submission.mistake_count
         )
         
         if "error" in result:

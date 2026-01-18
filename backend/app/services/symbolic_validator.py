@@ -203,24 +203,47 @@ class SymbolicValidator:
                 "explanation": "Unexpected error during validation"
             }
     
+    def is_final_answer(self, expr_str: str) -> bool:
+        """
+        Check if an expression is a final answer (e.g., x = 4, y = -3).
+        A final answer has a single variable on one side and a number on the other.
+        """
+        try:
+            expr = self.parse_expression(expr_str)
+            if isinstance(expr, Eq):
+                # Check if one side is a single variable and the other is a number
+                lhs, rhs = expr.lhs, expr.rhs
+
+                # Check if lhs is variable and rhs is number
+                if lhs.is_Symbol and rhs.is_number:
+                    return True
+                # Check if rhs is variable and lhs is number
+                if rhs.is_Symbol and lhs.is_number:
+                    return True
+            return False
+        except:
+            return False
+
     def validate_sequence(self, expressions: List[str]) -> List[Dict]:
         """
         Validate a sequence of math steps.
-        
+
         Returns list of validation results, one for each step transition.
         Result at index i validates the step from expressions[i] to expressions[i+1].
         """
         if len(expressions) < 2:
             return []
-        
+
         results = []
         for i in range(len(expressions) - 1):
             result = self.validate_step(expressions[i], expressions[i + 1])
             result["step_number"] = i + 1
             result["from_expr"] = expressions[i]
             result["to_expr"] = expressions[i + 1]
+            # Mark if this step results in a final answer
+            result["is_final_answer"] = self.is_final_answer(expressions[i + 1])
             results.append(result)
-        
+
         return results
 
 

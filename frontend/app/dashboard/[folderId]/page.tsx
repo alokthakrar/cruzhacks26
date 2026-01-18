@@ -61,7 +61,7 @@ export default function FolderQuestionsPage() {
       const response = await getSubjectQuestions(folderId, 1, 100)
       // Convert API questions to UI format
       const uiQuestions: UIQuestion[] = response.questions.map(q => ({
-        id: q.id,
+        id: q._id,  // MongoDB uses _id
         questionText: q.text_content,
         questionNumber: q.question_number,
         pdfName: 'Uploaded PDF', // TODO: Get actual PDF name

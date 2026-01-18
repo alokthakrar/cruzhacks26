@@ -79,13 +79,26 @@ class AnswerSubmission(BaseModel):
         populate_by_name = True
 
 
+class MistakeRecord(BaseModel):
+    """A single mistake made during problem solving."""
+    step_number: int
+    error_type: str  # "arithmetic", "algebraic", "notation", "conceptual"
+    error_message: Optional[str] = None
+    from_expr: Optional[str] = None
+    to_expr: Optional[str] = None
+
+
 class AnswerSubmissionCreate(BaseModel):
     """Request body for submitting an answer."""
-    
+
     question_id: str
     is_correct: bool
     time_taken_seconds: Optional[int] = None
     user_answer: Optional[str] = None
+
+    # Mistake tracking
+    mistake_count: int = Field(default=0, ge=0, description="Total mistakes made before solving")
+    mistakes: list[MistakeRecord] = Field(default_factory=list, description="Details of each mistake")
 
 
 class AnswerSubmissionResponse(BaseModel):

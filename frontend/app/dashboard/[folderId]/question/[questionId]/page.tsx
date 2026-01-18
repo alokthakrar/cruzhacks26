@@ -1,155 +1,276 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import MathLine from '@/components/MathLine'
+import { getQuestionById, getSubjectQuestions, Question, submitAnswer, MistakeRecord } from '@/lib/api'
 
-// Type definitions
-type Question = {
-  id: string
-  questionText: string
-  questionNumber: number
-  pdfName: string
-}
-
-// Fake question data
-const FAKE_QUESTIONS: { [key: string]: Question } = {
-  'q1': {
-    id: 'q1',
-    questionText: 'Find the derivative of f(x) = 3x² + 2x - 5',
-    questionNumber: 1,
-    pdfName: 'Calculus Chapter 3',
-  },
-  'q2': {
-    id: 'q2',
-    questionText: 'Evaluate the integral: ∫(4x³ - 2x + 1)dx',
-    questionNumber: 2,
-    pdfName: 'Calculus Chapter 3',
-  },
-  'q3': {
-    id: 'q3',
-    questionText: 'Using the chain rule, find dy/dx for y = sin(x²)',
-    questionNumber: 3,
-    pdfName: 'Calculus Chapter 3',
-  },
-  'q4': {
-    id: 'q4',
-    questionText: 'Find the critical points of f(x) = x³ - 6x² + 9x + 2',
-    questionNumber: 4,
-    pdfName: 'Calculus Chapter 3',
-  },
-  'q5': {
-    id: 'q5',
-    questionText: 'A 5kg object is accelerating at 3m/s². What is the net force?',
-    questionNumber: 1,
-    pdfName: 'Physics Problem Set',
-  },
-  'q6': {
-    id: 'q6',
-    questionText: 'Calculate the momentum of a 10kg object moving at 15m/s',
-    questionNumber: 2,
-    pdfName: 'Physics Problem Set',
-  },
-}
-
-const FOLDER_NAMES: { [key: string]: string } = {
-  '1': 'Calculus',
-  '2': 'Physics',
+interface ValidationResult {
+  is_valid: boolean
+  error: string | null
+  explanation: string
+  warning?: string | null
+  is_final_answer?: boolean
 }
 
 export default function QuestionCanvasPage() {
   const params = useParams()
+  const router = useRouter()
   const folderId = params.folderId as string
   const questionId = params.questionId as string
 
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen')
-  const [color, setColor] = useState('#000000')
-  const [lineWidth, setLineWidth] = useState(2)
+  // Question state
+  const [question, setQuestion] = useState<Question | null>(null)
+  const [allQuestions, setAllQuestions] = useState<Question[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const question = FAKE_QUESTIONS[questionId]
-  const folderName = FOLDER_NAMES[folderId] || 'Unknown Folder'
+  // Canvas state
+  const [lines, setLines] = useState<number[]>([1])
+  const [strokeColor, setStrokeColor] = useState('#000000')
+  const [strokeWidth, setStrokeWidth] = useState(4)
+  const [lineTexts, setLineTexts] = useState<Map<number, string>>(new Map())
+  const [validationResults, setValidationResults] = useState<Map<number, ValidationResult>>(new Map())
+  const [showVisualFeedback, setShowVisualFeedback] = useState(true)
 
+  // Solved state
+  const [isSolved, setIsSolved] = useState(false)
+  const [isNavigating, setIsNavigating] = useState(false)
+
+  // Mistake tracking for BKT
+  const [mistakes, setMistakes] = useState<MistakeRecord[]>([])
+  const [hasSubmittedBKT, setHasSubmittedBKT] = useState(false)
+  const [startTime] = useState<number>(Date.now())
+
+  // Fetch question and all questions in subject on mount
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    // Set canvas size to match display size
-    const resizeCanvas = () => {
-      const rect = canvas.getBoundingClientRect()
-      canvas.width = rect.width * window.devicePixelRatio
-      canvas.height = rect.height * window.devicePixelRatio
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+    const fetchData = async () => {
+      setIsLoading(true)
+      try {
+        const [q, questionsResponse] = await Promise.all([
+          getQuestionById(questionId),
+          getSubjectQuestions(folderId, 1, 100)
+        ])
+        setQuestion(q)
+        setAllQuestions(questionsResponse.questions)
+        setError(null)
+      } catch (err) {
+        console.error('Failed to fetch question:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load question')
+      } finally {
+        setIsLoading(false)
+      }
     }
+    fetchData()
+  }, [questionId, folderId])
 
-    resizeCanvas()
-    window.addEventListener('resize', resizeCanvas)
+  const handleStrokeEnd = (lineNumber: number) => {
+    if (lineNumber === lines[lines.length - 1]) {
+      setLines([...lines, lineNumber + 1])
+    }
+  }
 
-    return () => window.removeEventListener('resize', resizeCanvas)
+  const handleTextChange = useCallback((lineNumber: number, text: string) => {
+    setLineTexts(prev => {
+      const newMap = new Map(prev)
+      if (text) {
+        newMap.set(lineNumber, text)
+      } else {
+        newMap.delete(lineNumber)
+      }
+      return newMap
+    })
   }, [])
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    setIsDrawing(true)
-    const canvas = canvasRef.current
-    if (!canvas) return
+  const handleClearValidation = useCallback((lineNumber: number) => {
+    setValidationResults(prev => {
+      const newMap = new Map(prev)
+      newMap.delete(lineNumber)
+      return newMap
+    })
+  }, [])
 
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+  // Get problem text from question
+  const problemText = question?.text_content || ''
 
-    const rect = canvas.getBoundingClientRect()
-    const x = ('touches' in e) ? e.touches[0].clientX - rect.left : e.clientX - rect.left
-    const y = ('touches' in e) ? e.touches[0].clientY - rect.top : e.clientY - rect.top
+  // Automatic validation whenever line texts change
+  useEffect(() => {
+    if (!problemText) return
 
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
+    const validateSequence = async () => {
+      const userExpressions = lines
+        .map(lineNum => lineTexts.get(lineNum) || '')
+        .filter(text => text.trim() !== '')
+
+      if (userExpressions.length < 1) {
+        setValidationResults(new Map())
+        setIsSolved(false)
+        return
+      }
+
+      try {
+        const expressions = [problemText.replace(/\s+/g, ''), ...userExpressions]
+
+        const response = await fetch('http://localhost:8000/api/analyze/validate_sequence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ expressions }),
+        })
+
+        if (!response.ok) {
+          console.error('Validation failed:', response.statusText)
+          return
+        }
+
+        const data = await response.json()
+        const resultsMap = new Map<number, ValidationResult>()
+        const newMistakes: MistakeRecord[] = []
+
+        let allValid = true
+        let hasFinalAnswer = false
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data.results.forEach((result: any) => {
+          resultsMap.set(result.step_number, {
+            is_valid: result.is_valid,
+            error: result.error,
+            explanation: result.explanation,
+            warning: result.warning,
+            is_final_answer: result.is_final_answer,
+          })
+
+          if (!result.is_valid) {
+            allValid = false
+            // Track this mistake if it's a new one we haven't recorded yet
+            const existingMistake = mistakes.find(
+              m => m.step_number === result.step_number &&
+                   m.from_expr === result.from_expr &&
+                   m.to_expr === result.to_expr
+            )
+            if (!existingMistake) {
+              // Classify the error type based on error message
+              let errorType: MistakeRecord['error_type'] = 'unknown'
+              const errorLower = (result.error || '').toLowerCase()
+              if (errorLower.includes('arithmetic') || errorLower.includes('calculation')) {
+                errorType = 'arithmetic'
+              } else if (errorLower.includes('algebraic') || errorLower.includes('transformation')) {
+                errorType = 'algebraic'
+              } else if (errorLower.includes('parse') || errorLower.includes('notation')) {
+                errorType = 'notation'
+              } else if (errorLower.includes('concept') || errorLower.includes('prerequisite')) {
+                errorType = 'conceptual'
+              }
+
+              newMistakes.push({
+                step_number: result.step_number,
+                error_type: errorType,
+                error_message: result.error,
+                from_expr: result.from_expr,
+                to_expr: result.to_expr,
+              })
+            }
+          }
+          if (result.is_final_answer) {
+            hasFinalAnswer = true
+          }
+        })
+
+        // Add new mistakes to state
+        if (newMistakes.length > 0) {
+          setMistakes(prev => [...prev, ...newMistakes])
+        }
+
+        setValidationResults(resultsMap)
+
+        // Check if problem is solved: backend returns is_complete when all valid + final answer reached
+        setIsSolved(data.is_complete === true)
+      } catch (err) {
+        console.error('Validation error:', err)
+      }
+    }
+
+    const timer = setTimeout(validateSequence, 500)
+    return () => clearTimeout(timer)
+  }, [lineTexts, lines, problemText, mistakes])
+
+  // Submit to BKT when problem is solved
+  useEffect(() => {
+    if (!isSolved || hasSubmittedBKT || !question) return
+
+    const submitToBKT = async () => {
+      try {
+        // Calculate time taken
+        const timeTakenSeconds = Math.floor((Date.now() - startTime) / 1000)
+
+        // Get the final answer from the last line
+        const lastLineWithText = Array.from(lineTexts.entries())
+          .filter(([_, text]) => text.trim() !== '')
+          .sort(([a], [b]) => b - a)[0]
+        const userAnswer = lastLineWithText ? lastLineWithText[1] : undefined
+
+        // For now, use a placeholder user ID - in production this would come from auth
+        const userId = 'demo_user'
+
+        await submitAnswer(userId, folderId, {
+          question_id: questionId,
+          is_correct: true, // Problem is solved, so final answer is correct
+          user_answer: userAnswer,
+          time_taken_seconds: timeTakenSeconds,
+          mistake_count: mistakes.length,
+          mistakes: mistakes,
+        })
+
+        setHasSubmittedBKT(true)
+        console.log(`BKT submitted: ${mistakes.length} mistakes recorded`)
+      } catch (err) {
+        // Log but don't block - BKT is enhancement, not critical path
+        console.error('Failed to submit to BKT:', err)
+      }
+    }
+
+    submitToBKT()
+  }, [isSolved, hasSubmittedBKT, question, questionId, folderId, mistakes, lineTexts, startTime])
+
+  // Navigate to next random question
+  const handleNextQuestion = () => {
+    if (!isSolved || isNavigating) return
+
+    setIsNavigating(true)
+
+    // Filter out current question and pick a random one
+    const otherQuestions = allQuestions.filter(q => q._id !== questionId)
+
+    if (otherQuestions.length === 0) {
+      // No more questions, go back to dashboard
+      router.push(`/dashboard/${folderId}`)
+      return
+    }
+
+    const randomIndex = Math.floor(Math.random() * otherQuestions.length)
+    const nextQuestion = otherQuestions[randomIndex]
+
+    router.push(`/dashboard/${folderId}/question/${nextQuestion._id}`)
   }
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return
-
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const rect = canvas.getBoundingClientRect()
-    const x = ('touches' in e) ? e.touches[0].clientX - rect.left : e.clientX - rect.left
-    const y = ('touches' in e) ? e.touches[0].clientY - rect.top : e.clientY - rect.top
-
-    ctx.strokeStyle = tool === 'eraser' ? '#ffffff' : color
-    ctx.lineWidth = tool === 'eraser' ? lineWidth * 3 : lineWidth
-    ctx.lineTo(x, y)
-    ctx.stroke()
-  }
-
-  const stopDrawing = () => {
-    setIsDrawing(false)
-  }
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-  }
-
-  if (!question) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#fefdfb] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 text-lg mb-4">Question not found</p>
-          <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 font-semibold">
-            ← Back to Dashboard
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading question...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !question) {
+    return (
+      <div className="min-h-screen bg-[#fefdfb] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 text-lg mb-4">{error || 'Question not found'}</p>
+          <Link href={`/dashboard/${folderId}`} className="text-blue-600 hover:text-blue-700 font-semibold">
+            ← Back to Questions
           </Link>
         </div>
       </div>
@@ -157,137 +278,204 @@ export default function QuestionCanvasPage() {
   }
 
   return (
-    <div className="paper min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="relative z-10 bg-white border-b border-gray-200" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <Link
-              href={`/dashboard/${folderId}`}
-              className="inline-flex items-center text-blue-600 hover:text-blue-700 font-semibold transition-all duration-200 hover:gap-2 gap-1 group text-sm md:text-base"
-            >
-              <svg className="w-4 h-4 md:w-5 md:h-5 transition-transform duration-200 group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to {folderName}
-            </Link>
+    <div
+      className="min-h-screen relative"
+      style={{
+        backgroundImage: `linear-gradient(rgba(200,200,200,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(200,200,200,0.1) 1px, transparent 1px)`,
+        backgroundSize: '20px 20px',
+        backgroundColor: '#fafafa',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      {/* Grain overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.3'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'repeat',
+          opacity: 0.9,
+          mixBlendMode: 'multiply'
+        }}
+      />
 
-            <div className="flex items-center gap-2">
-              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs md:text-sm font-semibold">
-                Question {question.questionNumber}
+      <div className="max-w-4xl mx-auto p-8 relative z-10">
+        {/* Header with back button and progress */}
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href={`/dashboard/${folderId}`}
+            className="inline-flex items-center text-blue-600 hover:text-blue-700 font-semibold transition-all duration-200 hover:gap-2 gap-1 group text-sm"
+          >
+            <svg className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Questions
+          </Link>
+
+          <span className="text-sm text-gray-500">
+            {allQuestions.length > 0 && `${allQuestions.findIndex(q => q._id === questionId) + 1} of ${allQuestions.length}`}
+          </span>
+        </div>
+
+        {/* Problem Card */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+              Question {question.question_number}
+            </span>
+            {question.difficulty_estimate && (
+              <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm">
+                {question.difficulty_estimate}
+              </span>
+            )}
+            {isSolved && (
+              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Solved!
+              </span>
+            )}
+          </div>
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+            <p className="text-gray-800 text-lg font-medium leading-relaxed">
+              {question.text_content}
+            </p>
+            {question.latex_content && (
+              <p className="text-gray-600 text-sm mt-2 font-mono">
+                {question.latex_content}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Work Section */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-6">
+          <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-4">
+            {/* Drawing Tools */}
+            <div className="flex items-center gap-6">
+              {/* Color Picker */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Color:</span>
+                <div className="flex gap-1.5">
+                  {['#000000', '#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'].map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setStrokeColor(color)}
+                      className={`w-7 h-7 rounded-full border-2 transition-all ${
+                        strokeColor === color ? 'border-gray-900 scale-110' : 'border-gray-300 hover:scale-105'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Stroke Width */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Size:</span>
+                <div className="flex gap-1.5">
+                  {[2, 4, 6, 8].map((width) => (
+                    <button
+                      key={width}
+                      onClick={() => setStrokeWidth(width)}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        strokeWidth === width
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {width}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Feedback Toggle */}
+            <button
+              onClick={() => setShowVisualFeedback(!showVisualFeedback)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                showVisualFeedback
+                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              title={showVisualFeedback ? 'Hide detailed error highlighting' : 'Show detailed error highlighting'}
+            >
+              {showVisualFeedback ? '📍 Detailed Feedback' : '✓ Simple Feedback'}
+            </button>
+          </div>
+
+          <div>
+            {lines.map((lineNumber) => {
+              const previousStep = lineNumber === 1
+                ? problemText
+                : lineTexts.get(lineNumber - 1) || ''
+
+              return (
+                <MathLine
+                  key={lineNumber}
+                  lineNumber={lineNumber}
+                  strokeColor={strokeColor}
+                  strokeWidth={strokeWidth}
+                  onStrokeEnd={() => handleStrokeEnd(lineNumber)}
+                  onTextChange={handleTextChange}
+                  validationResult={validationResults.get(lineNumber)}
+                  onClearValidation={handleClearValidation}
+                  showVisualFeedback={showVisualFeedback}
+                  problemContext={problemText}
+                  previousStep={previousStep}
+                />
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Bottom Bar with AI Status, Mistake Count, and Next Button */}
+        <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-xl px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className={`w-2 h-2 rounded-full animate-pulse ${isSolved ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+              <span className="font-medium">
+                {isSolved ? 'Problem solved!' : 'AI is monitoring your work...'}
               </span>
             </div>
+            {mistakes.length > 0 && (
+              <div className="flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span className="font-medium">{mistakes.length} mistake{mistakes.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
           </div>
 
-          {/* Question Display */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 md:p-6 border border-blue-200">
-            <p className="text-gray-800 text-base md:text-lg font-medium leading-relaxed">
-              {question.questionText}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="relative z-10 bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex flex-wrap items-center gap-2 md:gap-4">
-          {/* Tools */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setTool('pen')}
-              className={`px-3 md:px-4 py-2 rounded-lg font-semibold transition-all duration-200 min-h-[44px] flex items-center gap-2 ${
-                tool === 'pen'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              <span className="hidden sm:inline">Pen</span>
-            </button>
-
-            <button
-              onClick={() => setTool('eraser')}
-              className={`px-3 md:px-4 py-2 rounded-lg font-semibold transition-all duration-200 min-h-[44px] flex items-center gap-2 ${
-                tool === 'eraser'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              <span className="hidden sm:inline">Eraser</span>
-            </button>
-          </div>
-
-          {/* Line Width */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs md:text-sm font-semibold text-gray-700 hidden sm:inline">Size:</label>
-            <input
-              type="range"
-              min="1"
-              max="10"
-              value={lineWidth}
-              onChange={(e) => setLineWidth(Number(e.target.value))}
-              className="w-16 md:w-24"
-            />
-            <span className="text-xs md:text-sm text-gray-600 w-8">{lineWidth}px</span>
-          </div>
-
-          {/* Color Picker (only for pen) */}
-          {tool === 'pen' && (
-            <div className="flex items-center gap-2">
-              <label className="text-xs md:text-sm font-semibold text-gray-700 hidden sm:inline">Color:</label>
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-10 h-10 md:w-12 md:h-12 rounded-lg border-2 border-gray-300 cursor-pointer"
-              />
-            </div>
-          )}
-
-          {/* Clear Button */}
+          {/* Next Question Button */}
           <button
-            onClick={clearCanvas}
-            className="ml-auto px-3 md:px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-all duration-200 min-h-[44px] flex items-center gap-2"
+            onClick={handleNextQuestion}
+            disabled={!isSolved || isNavigating}
+            className={`px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+              isSolved
+                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 shadow-lg hover:shadow-xl hover:-translate-y-0.5'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
           >
-            <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            <span className="hidden sm:inline">Clear</span>
+            {isNavigating ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Loading...
+              </>
+            ) : (
+              <>
+                Next Question
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </>
+            )}
           </button>
-        </div>
-      </div>
-
-      {/* Canvas Area */}
-      <div className="relative z-10 flex-1 p-4 md:p-6">
-        <div className="h-full bg-white rounded-xl shadow-lg border-2 border-gray-300 overflow-hidden">
-          <canvas
-            ref={canvasRef}
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
-            onTouchStart={startDrawing}
-            onTouchMove={draw}
-            onTouchEnd={stopDrawing}
-            className="w-full h-full cursor-crosshair touch-none"
-            style={{ touchAction: 'none' }}
-          />
-        </div>
-      </div>
-
-      {/* AI Feedback Area (placeholder for now) */}
-      <div className="relative z-10 bg-white/80 backdrop-blur-md border-t border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="font-medium">AI is monitoring your work...</span>
-          <span className="text-xs text-gray-400 ml-auto hidden md:inline">
-            Mistakes will be highlighted in red
-          </span>
         </div>
       </div>
     </div>

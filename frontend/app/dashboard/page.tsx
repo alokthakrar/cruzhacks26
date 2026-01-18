@@ -384,7 +384,7 @@ export default function DashboardPage() {
               <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                 {extractedQuestions.map((question, index) => (
                   <div
-                    key={question.id}
+                    key={question._id}
                     className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-gray-200 hover:shadow-lg transition-all duration-200"
                   >
                     <div className="flex items-start gap-3">

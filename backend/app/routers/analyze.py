@@ -142,12 +142,14 @@ class StepValidationResult(BaseModel):
     error: Optional[str]
     explanation: str
     warning: Optional[str] = None
+    is_final_answer: bool = False
 
 
 class ValidateSequenceResponse(BaseModel):
     """Response with validation results for all steps."""
     results: List[StepValidationResult]
     all_valid: bool
+    is_complete: bool = False  # True if the final step is a valid final answer
 
 
 @router.post("/validate_sequence", response_model=ValidateSequenceResponse)
@@ -164,12 +166,16 @@ async def validate_sequence(request: ValidateSequenceRequest):
     
     validator = get_validator()
     results = validator.validate_sequence(request.expressions)
-    
+
     all_valid = all(r["is_valid"] for r in results)
-    
+
+    # Check if the problem is complete (all steps valid and final step is a final answer)
+    is_complete = all_valid and len(results) > 0 and results[-1].get("is_final_answer", False)
+
     return ValidateSequenceResponse(
         results=[StepValidationResult(**r) for r in results],
-        all_valid=all_valid
+        all_valid=all_valid,
+        is_complete=is_complete
     )
 
 

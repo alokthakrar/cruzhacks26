@@ -43,6 +43,7 @@ class PDFQuestion(PDFQuestionBase):
 
     class Config:
         populate_by_name = True
+        by_alias = False  # Serialize using field name 'id', not alias '_id'
 
 
 class PDFQuestionCreate(PDFQuestionBase):

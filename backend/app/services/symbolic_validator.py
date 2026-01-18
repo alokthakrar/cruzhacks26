@@ -438,13 +438,14 @@ class SymbolicValidator:
             result["from_expr"] = expressions[i]
             result["to_expr"] = expressions[i + 1]
             
-            # Check if this is a final answer (e.g., x=3, y=-5, etc.)
+            # Check if this is a final answer (e.g., x=3, y=-5, x=5/2, etc.)
             to_expr = expressions[i + 1].strip()
             import re
-            # Match patterns like: x=3, y=-5, x=-3, n=42
-            # Also match multiple solutions: x=-3,-4 or x=1,2,3
-            final_answer_pattern = r'^[a-z]=-?\d+(?:,-?\d+)*$'
-            is_final = bool(re.match(final_answer_pattern, to_expr.replace(' ', '')))
+            # Match patterns like: x=3, y=-5, x=-3, n=42, x=5/2, x=1/3,-2
+            # Also match multiple solutions: x=-3,-4 or x=1,2,3 or x=5/2,-1
+            # Allow fractions (digits/digits) and integers
+            final_answer_pattern = r'^[a-z]=(-?\d+(/\d+)?)(,\s*-?\d+(/\d+)?)*$'
+            is_final = bool(re.match(final_answer_pattern, to_expr.replace(' ', '').replace(',', ', ')))
             result["is_final_answer"] = is_final
             
             results.append(result)

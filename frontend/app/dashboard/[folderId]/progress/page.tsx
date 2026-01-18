@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { getKnowledgeGraph, getUserMastery, type KnowledgeGraph, type ConceptMastery } from '@/lib/api'
+import { getKnowledgeGraph, getMasteryState, type KnowledgeGraph, type ConceptMastery } from '@/lib/api'
 
 const FOLDER_NAMES: { [key: string]: string } = {
   '1': 'Calculus',
@@ -45,7 +45,7 @@ export default function ProgressPage() {
 
         // Try to fetch user mastery (will fail if not initialized yet)
         try {
-          const mastery = await getUserMastery('dev_user_123', subjectId)
+          const mastery = await getMasteryState('dev_user_123', subjectId)
           setMasteryData(mastery.concepts)
         } catch (err) {
           // No mastery data yet - show all locked except root concepts

@@ -157,32 +157,9 @@ export default function QuestionCanvasPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fefdfb] relative flex flex-col">
-      {/* Graph paper texture overlay */}
-      <div
-        className="absolute inset-0 opacity-[0.25] pointer-events-none"
-        style={{
-          backgroundImage: `
-            repeating-linear-gradient(
-              0deg,
-              transparent,
-              transparent 19px,
-              #9ca3af 19px,
-              #9ca3af 20px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              transparent,
-              transparent 19px,
-              #9ca3af 19px,
-              #9ca3af 20px
-            )
-          `
-        }}
-      />
-
+    <div className="paper min-h-screen flex flex-col">
       {/* Header */}
-      <div className="relative z-10 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
+      <div className="relative z-10 bg-white border-b border-gray-200" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between mb-3">
             <Link
@@ -212,7 +189,7 @@ export default function QuestionCanvasPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="relative z-10 bg-white/80 backdrop-blur-md border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
+      <div className="relative z-10 bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex flex-wrap items-center gap-2 md:gap-4">
           {/* Tools */}
           <div className="flex gap-2">

@@ -92,30 +92,7 @@ export default function FolderQuestionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fefdfb] relative">
-      {/* Graph paper texture overlay */}
-      <div
-        className="absolute inset-0 opacity-[0.25] pointer-events-none"
-        style={{
-          backgroundImage: `
-            repeating-linear-gradient(
-              0deg,
-              transparent,
-              transparent 19px,
-              #9ca3af 19px,
-              #9ca3af 20px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              transparent,
-              transparent 19px,
-              #9ca3af 19px,
-              #9ca3af 20px
-            )
-          `
-        }}
-      />
-
+    <div className="paper min-h-screen">
       {/* Main content */}
       <div className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         {/* Header with back button */}
@@ -157,9 +134,16 @@ export default function FolderQuestionsPage() {
               <Link
                 key={question.id}
                 href={`/dashboard/${folderId}/question/${question.id}`}
-                className="bg-white/70 backdrop-blur-sm rounded-xl p-6 shadow-md hover:shadow-2xl transition-all duration-300 border border-gray-200/50 cursor-pointer hover:-translate-y-1 group"
+                className="bg-white rounded-xl p-6 transition-all duration-300 border border-gray-200 cursor-pointer hover:-translate-y-1 group"
                 style={{
-                  animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
+                  animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = "0 12px 24px rgba(0,0,0,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)";
                 }}
               >
                 {/* Question Number Badge */}

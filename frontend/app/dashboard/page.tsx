@@ -163,30 +163,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fefdfb] relative">
-      {/* Graph paper texture overlay */}
-      <div
-        className="absolute inset-0 opacity-[0.25] pointer-events-none"
-        style={{
-          backgroundImage: `
-            repeating-linear-gradient(
-              0deg,
-              transparent,
-              transparent 19px,
-              #9ca3af 19px,
-              #9ca3af 20px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              transparent,
-              transparent 19px,
-              #9ca3af 19px,
-              #9ca3af 20px
-            )
-          `
-        }}
-      />
-
+    <div className="paper min-h-screen">
       {/* Main content */}
       <div className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
@@ -201,7 +178,26 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => setShowCreateFolder(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center gap-2 hover:scale-105 hover:shadow-lg active:scale-95"
+            style={{
+              padding: "10px 28px",
+              fontSize: 16,
+              fontWeight: 500,
+              backgroundColor: "transparent",
+              color: "rgba(0, 0, 0, 0.7)",
+              border: "1px solid rgba(0, 0, 0, 0.8)",
+              borderRadius: 999,
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "rgba(0, 0, 0, 0.9)";
+              e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.08)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "rgba(0, 0, 0, 0.8)";
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
+            className="flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -213,7 +209,7 @@ export default function DashboardPage() {
         {/* Create Folder Modal */}
         {showCreateFolder && (
           <div className="fixed inset-0 backdrop-blur-sm bg-white/30 flex items-center justify-center z-50 animate-fade-in">
-            <div className="bg-white/90 backdrop-blur-md rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200/50 animate-scale-in">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 border border-gray-200 animate-scale-in" style={{ boxShadow: "0 12px 24px rgba(0,0,0,0.08)" }}>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Create New Folder</h2>
               <input
                 type="text"
@@ -247,7 +243,24 @@ export default function DashboardPage() {
               <div className="flex gap-3">
                 <button
                   onClick={handleCreateFolder}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+                  style={{
+                    flex: 1,
+                    padding: "10px 20px",
+                    fontSize: 16,
+                    fontWeight: 500,
+                    backgroundColor: "#000",
+                    color: "#fff",
+                    border: "1px solid #000",
+                    borderRadius: 999,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#000";
+                  }}
                 >
                   Create
                 </button>
@@ -257,7 +270,26 @@ export default function DashboardPage() {
                     setNewFolderName('')
                     setSelectedColor('Blue')
                   }}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+                  style={{
+                    flex: 1,
+                    padding: "10px 20px",
+                    fontSize: 16,
+                    fontWeight: 500,
+                    backgroundColor: "transparent",
+                    color: "rgba(0, 0, 0, 0.7)",
+                    border: "1px solid rgba(0, 0, 0, 0.3)",
+                    borderRadius: 999,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(0, 0, 0, 0.5)";
+                    e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.05)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(0, 0, 0, 0.3)";
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }}
                 >
                   Cancel
                 </button>
@@ -366,9 +398,16 @@ export default function DashboardPage() {
                   <Link
                     key={folder.id}
                     href={`/dashboard/${folder.id}`}
-                    className="bg-white/70 backdrop-blur-sm rounded-lg shadow-md overflow-hidden hover:shadow-2xl transition-all duration-300 border border-gray-200/50 cursor-pointer hover:-translate-y-2 group"
+                    className="bg-white rounded-lg overflow-hidden transition-all duration-300 border border-gray-200 cursor-pointer hover:-translate-y-1 group"
                     style={{
-                      animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
+                      animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = "0 12px 24px rgba(0,0,0,0.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)";
                     }}
                   >
                     {/* Folder Icon */}
